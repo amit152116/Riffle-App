@@ -1,0 +1,9 @@
+package com.amit152116.riffle.data.model
+
+enum class GridStyle(val label: String) {
+    GRID("Grid"),
+    CARD("Card"),
+    CIRCULAR("Circular"),
+    IMAGE("Image"),
+    GRADIENT_IMAGE("Gradient Image")
+}
