@@ -234,4 +234,36 @@ object TestFixtures {
         score = score,
         parsedAt = parsedAt
     )
+
+    fun clusterRun(
+        nClusters: Int = 8,
+        nTracks: Int = 100,
+        scalerParams: ByteArray? = ByteArray(16),
+        createdAt: Long? = 1_000L
+    ) = com.amit152116.riffle.data.local.cluster.ClusterRun(
+        nClusters = nClusters,
+        nTracks = nTracks,
+        scalerParams = scalerParams,
+        createdAt = createdAt
+    )
+
+    fun trackSimilarity(
+        trackId: Long,
+        neighborId: Long,
+        mfccNorm: Double = 0.1,
+        bpmNorm: Double? = 0.05,
+        keyNorm: Double? = 0.0,
+        energyNorm: Double? = 0.02,
+        combinedScore: Double = 0.9,
+        configHash: String? = "cfg-1"
+    ) = com.amit152116.riffle.data.local.cluster.TrackSimilarity(
+        trackId = trackId,
+        neighborId = neighborId,
+        mfccNorm = mfccNorm,
+        bpmNorm = bpmNorm,
+        keyNorm = keyNorm,
+        energyNorm = energyNorm,
+        combinedScore = combinedScore,
+        configHash = configHash
+    )
 }

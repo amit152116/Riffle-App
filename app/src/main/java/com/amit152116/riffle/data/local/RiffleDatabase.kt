@@ -6,6 +6,11 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.amit152116.riffle.data.local.analysis.AnalysisDao
+import com.amit152116.riffle.data.local.cluster.ClusterAssignment
+import com.amit152116.riffle.data.local.cluster.ClusterCentroid
+import com.amit152116.riffle.data.local.cluster.ClusterDao
+import com.amit152116.riffle.data.local.cluster.ClusterRun
+import com.amit152116.riffle.data.local.cluster.TrackSimilarity
 import com.amit152116.riffle.data.local.analysis.AudioFeatures
 import com.amit152116.riffle.data.local.analysis.QualityFlag
 import com.amit152116.riffle.data.local.dedup.DedupDao
@@ -50,7 +55,11 @@ import com.amit152116.riffle.data.local.musicbrainz.MusicBrainzMatch
         MbArtist::class,
         MbRecordingArtist::class,
         AcoustidCache::class,
-        AcoustidCacheContent::class
+        AcoustidCacheContent::class,
+        ClusterRun::class,
+        ClusterCentroid::class,
+        ClusterAssignment::class,
+        TrackSimilarity::class
     ],
     version = 1,
     exportSchema = true
@@ -62,6 +71,7 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun dedupDao(): DedupDao
     abstract fun analysisDao(): AnalysisDao
     abstract fun musicBrainzDao(): MusicBrainzDao
+    abstract fun clusterDao(): ClusterDao
 
     companion object {
         @Volatile private var instance: RiffleDatabase? = null
