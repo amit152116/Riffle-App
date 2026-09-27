@@ -160,4 +160,18 @@ object TestFixtures {
         tier = tier,
         verifiedDirect = verifiedDirect
     )
+
+    fun dupGroup(
+        runId: Long,
+        tier: Int = 1,
+        formedByChain: Boolean = false,
+        decision: DupDecision = DupDecision.PROPOSED,
+        decidedAt: Long? = null
+    ) = com.amit152116.riffle.data.local.dedup.DupGroup(
+        runId = runId,
+        tier = tier,
+        formedByChain = formedByChain,
+        decision = decision,
+        decidedAt = decidedAt
+    )
 }

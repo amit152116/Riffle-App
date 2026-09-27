@@ -5,6 +5,11 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.amit152116.riffle.data.local.dedup.DedupDao
+import com.amit152116.riffle.data.local.dedup.DupGroup
+import com.amit152116.riffle.data.local.dedup.GroupContent
+import com.amit152116.riffle.data.local.dedup.GroupMember
+import com.amit152116.riffle.data.local.dedup.QuarantineLog
 import com.amit152116.riffle.data.local.fingerprint.AudioPair
 import com.amit152116.riffle.data.local.fingerprint.Fingerprint
 import com.amit152116.riffle.data.local.fingerprint.FingerprintDao
@@ -25,7 +30,11 @@ import com.amit152116.riffle.data.local.library.Track
         Fingerprint::class,
         MatchRun::class,
         RunTrack::class,
-        AudioPair::class
+        AudioPair::class,
+        DupGroup::class,
+        GroupContent::class,
+        GroupMember::class,
+        QuarantineLog::class
     ],
     version = 1,
     exportSchema = true
@@ -34,6 +43,7 @@ import com.amit152116.riffle.data.local.library.Track
 abstract class RiffleDatabase : RoomDatabase() {
     abstract fun libraryDao(): LibraryDao
     abstract fun fingerprintDao(): FingerprintDao
+    abstract fun dedupDao(): DedupDao
 
     companion object {
         @Volatile private var instance: RiffleDatabase? = null
