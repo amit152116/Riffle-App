@@ -42,11 +42,11 @@ class PlaybackRepositoryTest {
         val playlistId = repository.insertPlaylist(TestFixtures.playlist())
 
         repository.addToPlaylist(playlistId, trackA)
-        repository.addToPlaylist(playlistId, trackB)
+        val entryB = repository.addToPlaylist(playlistId, trackB)
         repository.addToPlaylist(playlistId, trackC)
 
-        // Remove the middle track (position 1).
-        repository.removeFromPlaylist(playlistId, trackB)
+        // Remove the middle track (position 1), by its own row id.
+        repository.removeFromPlaylist(entryB)
 
         val remaining = repository.getPlaylistTracks(playlistId)
         assertEquals(2, remaining.size)
@@ -54,5 +54,25 @@ class PlaybackRepositoryTest {
         assertEquals(0, remaining[0].position)
         assertEquals(trackC, remaining[1].trackId)
         assertEquals(1, remaining[1].position)
+    }
+
+    @Test
+    fun removeFromPlaylist_duplicateTrack_removesTheTargetedEntryOnly() = runBlocking {
+        val contentId = libraryDao.insertAudioContent(TestFixtures.audioContent())
+        val trackA = libraryDao.insertTrack(TestFixtures.track(path = "/a.mp3", audioContentId = contentId))
+        val playlistId = repository.insertPlaylist(TestFixtures.playlist())
+
+        // Same track appears twice in the playlist.
+        val firstEntry = repository.addToPlaylist(playlistId, trackA)
+        val secondEntry = repository.addToPlaylist(playlistId, trackA)
+
+        // Removing the SECOND occurrence must not remove the first: a
+        // trackId-based lookup would remove the wrong (first) entry here.
+        repository.removeFromPlaylist(secondEntry)
+
+        val remaining = repository.getPlaylistTracks(playlistId)
+        assertEquals(1, remaining.size)
+        assertEquals(firstEntry, remaining[0].id)
+        assertEquals(0, remaining[0].position)
     }
 }

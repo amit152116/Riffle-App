@@ -89,26 +89,62 @@ dependencies {
 }
 
 // Confirmed via `./gradlew :app:dependencyInsight --dependency <name>
-// --configuration debugAndroidTestRuntimeClasspath`:
-// - kotlinx-serialization-json already resolves correctly to 1.8.1 (Room's
-//   room-migration-jvm:2.8.5 requests it directly; nothing strict-pins json
-//   itself, so normal conflict resolution already picks 1.8.1). Not touched.
-// - kotlinx-serialization-core is the only actual conflict: Compose BOM
-//   strictly pins it to 1.7.3, but json 1.8.1's own module metadata wants
-//   core 1.8.1 - the resulting 1.7.3/1.8.1 pairing throws AbstractMethodError
-//   on GeneratedSerializer.typeParametersSerializers() at runtime (used by
+// --configuration <config>`, rule below temporarily disabled to see the raw
+// graph:
+// - kotlinx-serialization-json already resolves correctly to 1.8.1 on
+//   debugAndroidTestRuntimeClasspath (Room's room-migration-jvm:2.8.5 requests
+//   it directly; nothing strict-pins json itself). Not touched.
+// - kotlinx-serialization-core is the only actual conflict, and it is NOT a
+//   Compose BOM pin: the BOM's own POM has no serialization entry at all
+//   (checked both 2026.02.01 and 2026.09.00). On the MAIN debugRuntimeClasspath
+//   it resolves to 1.7.3 by ordinary (non-strict) conflict resolution - four
+//   plain edges (lifecycle-viewmodel-compose-android, lifecycle-viewmodel-
+//   savedstate-android, savedstate-android, kotlinx-serialization-bom, all
+//   Compose-BOM-version-aligned) agree on 1.7.3 because nothing on main asks
+//   for anything higher; `grep strictly` on that output finds nothing.
+// - On debugAndroidTestRuntimeClasspath, AGP's "consistent resolution"
+//   feature turns that same 1.7.3 result into a STRICT requirement (its
+//   whole purpose: keep the test and app classpaths from silently diverging).
+//   Room's room-migration-jvm - androidTestImplementation-only - needs
+//   kotlinx-serialization-json:1.8.1, whose own module metadata wants core
+//   1.8.1. 1.7.3-strict vs 1.8.1-wanted throws AbstractMethodError on
+//   GeneratedSerializer.typeParametersSerializers() at runtime (used by
 //   Room's MigrationTestHelper). Per Gradle's docs on competing `strictly`
 //   declarations, a same-level `constraints {}` block can't win here (two
 //   same-level strictly ranges that don't overlap fail the build outright
 //   rather than picking the higher one) - force()/eachDependency{useVersion()}
-//   are the only two ways a project can override a platform's strictly.
+//   are the only two ways a project can override it.
+// - This rule is intentionally left unscoped (configurations.all, not just
+//   androidTest*) for a reason specific to Android instrumentation, not
+//   because the same strict pin exists on main (it doesn't - main's 1.7.3 is
+//   ordinary resolution, not strict): androidTest runs IN THE SAME PROCESS as
+//   the app under test (androidx.test.core.app.ApplicationProvider returns
+//   the app's own Application - see any *Test.kt setUp()), so whichever core
+//   version the MAIN app APK actually ships is what's loaded at runtime for
+//   BOTH app and test code, regardless of what androidTest's own classpath
+//   declares. Scoping this rule to androidTest only would leave main shipping
+//   1.7.3 while the test code's compiled expectations assume 1.8.1 - the same
+//   crash, just moved. This is a real, visible effect on the release build:
+//   it moves the app's shipped kotlinx-serialization-core from the
+//   naturally-resolved 1.7.3 to 1.8.1. Nothing in this app's own code uses
+//   kotlinx.serialization today, so no current behavior depends on which of
+//   the two is loaded - but this is a real, deliberate change to the release
+//   classpath, not a test-only shim.
 configurations.all {
     resolutionStrategy.eachDependency {
         if (requested.group == "org.jetbrains.kotlinx" &&
             (requested.name == "kotlinx-serialization-core" || requested.name == "kotlinx-serialization-core-jvm")
         ) {
             useVersion("1.8.1")
-            because("Match the core version kotlinx-serialization-json 1.8.1 (required by Room 2.8.5's room-migration) actually needs; Compose BOM's strict 1.7.3 pin is incompatible with it.")
+            because(
+                "kotlinx-serialization-core naturally resolves to 1.7.3 on the main classpath " +
+                    "(ordinary conflict resolution among Compose-BOM-aligned lifecycle/savedstate " +
+                    "deps, not a strict BOM pin); AGP's consistent-resolution then makes 1.7.3 " +
+                    "strict on debugAndroidTestRuntimeClasspath, conflicting with the 1.8.1 core " +
+                    "that Room 2.8.5's room-migration (via kotlinx-serialization-json:1.8.1) needs. " +
+                    "Applied unscoped because instrumented tests share the app's own classpath/" +
+                    "process, so androidTest-only would leave main shipping the mismatched version."
+            )
         }
     }
 }
