@@ -179,7 +179,9 @@ fun SearchScreen(
                                 .clickable { playerViewModel.playTrack(track, matchingSongs) }
                                 .padding(horizontal = 20.dp, vertical = 8.dp),
                             onPlayNext = { playerViewModel.playNext(track) },
-                            onAddToQueue = { playerViewModel.addToQueue(track) }
+                            onAddToQueue = { playerViewModel.addToQueue(track) },
+                            onGoToArtist = { onNavigateToArtist(track.artist) },
+                            onGoToAlbum = { onNavigateToAlbum(track.album) }
                         )
                     }
                 }

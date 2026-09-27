@@ -286,10 +286,10 @@ class MainActivity : ComponentActivity() {
                                 libraryViewModel = libraryViewModel,
                                 playerViewModel = playerViewModel,
                                 onNavigateToArtist = { artistName ->
-                                    navController.navigate("artist/$artistName")
+                                    navController.navigate("artist/${Uri.encode(artistName)}")
                                 },
                                 onNavigateToAlbum = { albumName ->
-                                    navController.navigate("album/$albumName")
+                                    navController.navigate("album/${Uri.encode(albumName)}")
                                 },
                                 onNavigateToSearch = { navController.navigate("search") }
                             )
@@ -318,7 +318,7 @@ class MainActivity : ComponentActivity() {
                                 playerViewModel = playerViewModel,
                                 onBack = { navController.popBackStack() },
                                 onNavigateToAlbum = { albumName ->
-                                    navController.navigate("album/$albumName")
+                                    navController.navigate("album/${Uri.encode(albumName)}")
                                 }
                             )
                         }
@@ -331,7 +331,10 @@ class MainActivity : ComponentActivity() {
                                 albumName = albumName,
                                 libraryViewModel = libraryViewModel,
                                 playerViewModel = playerViewModel,
-                                onBack = { navController.popBackStack() }
+                                onBack = { navController.popBackStack() },
+                                onNavigateToArtist = { artistName ->
+                                    navController.navigate("artist/${Uri.encode(artistName)}")
+                                }
                             )
                         }
                         composable(Screen.Shuffle.route) {

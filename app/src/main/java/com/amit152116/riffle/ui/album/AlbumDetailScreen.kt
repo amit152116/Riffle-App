@@ -1,6 +1,5 @@
 package com.amit152116.riffle.ui.album
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
@@ -40,10 +40,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.ColorUtils
 import com.amit152116.riffle.ui.library.LibraryViewModel
 import com.amit152116.riffle.ui.components.AsyncArtwork
+import com.amit152116.riffle.ui.components.rememberArtworkColors
 import com.amit152116.riffle.ui.components.TrackRow
 import com.amit152116.riffle.ui.player.PlayerViewModel
 
@@ -53,7 +57,8 @@ fun AlbumDetailScreen(
     albumName: String,
     libraryViewModel: LibraryViewModel,
     playerViewModel: PlayerViewModel,
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    onNavigateToArtist: (String) -> Unit = {}
 ) {
     val songs by libraryViewModel.songs.collectAsState()
     val albumTracks = songs.filter { it.album.equals(albumName, ignoreCase = true) }
@@ -61,6 +66,30 @@ fun AlbumDetailScreen(
     val artistName = albumTracks.firstOrNull()?.artist ?: "Unknown Artist"
     val albumArtworkUri = albumTracks.firstOrNull { it.artworkUri != null }?.artworkUri
     val artistArtworkUri = albumTracks.firstOrNull { it.artworkUri != null }?.artworkUri
+    val artworkColors = rememberArtworkColors(albumArtworkUri)
+    val artworkBgOpaque = artworkColors.backgroundColor or 0xFF000000.toInt()
+    val artworkBackgroundIsNearBlack =
+        ColorUtils.calculateLuminance(artworkBgOpaque) < 0.08
+    val artworkActionColor = if (artworkBackgroundIsNearBlack) {
+        Color(artworkColors.primaryTextColor)
+    } else {
+        Color(artworkColors.backgroundColor)
+    }
+    val artworkActionColorArgb = artworkActionColor.toArgb() or 0xFF000000.toInt()
+    val artworkActionTextColor = if (artworkBackgroundIsNearBlack) {
+        val contrast = try {
+            ColorUtils.calculateContrast(
+                Color.White.toArgb() or 0xFF000000.toInt(),
+                artworkActionColorArgb
+            )
+        } catch (e: IllegalArgumentException) {
+            1.0
+        }
+        if (contrast >= 4.5) Color.White else Color.Black
+    } else {
+        Color(artworkColors.primaryTextColor)
+    }
+    val artworkOutlineColor = artworkActionColor
     val detailListState = rememberLazyListState()
 
     Scaffold(
@@ -147,15 +176,16 @@ fun AlbumDetailScreen(
                                 .height(48.dp),
                             shape = RoundedCornerShape(24.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = MaterialTheme.colorScheme.onSurface
-                            )
+                                contentColor = artworkOutlineColor
+                            ),
+                            border = BorderStroke(1.dp, artworkOutlineColor)
                         ) {
                             Icon(Icons.Filled.PlayArrow, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Play", style = MaterialTheme.typography.titleMedium)
                         }
 
-                        OutlinedButton(
+                        Button(
                             onClick = {
                                 if (albumTracks.isNotEmpty()) {
                                     val shuffled = albumTracks.shuffled()
@@ -166,7 +196,11 @@ fun AlbumDetailScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp),
-                            shape = RoundedCornerShape(24.dp)
+                            shape = RoundedCornerShape(24.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = artworkActionColor,
+                                contentColor = artworkActionTextColor
+                            )
                         ) {
                             Icon(Icons.Filled.Shuffle, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
@@ -197,7 +231,8 @@ fun AlbumDetailScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     leadingText = "${index + 1}",
                     onPlayNext = { playerViewModel.playNext(track) },
-                    onAddToQueue = { playerViewModel.addToQueue(track) }
+                    onAddToQueue = { playerViewModel.addToQueue(track) },
+                    onGoToArtist = { onNavigateToArtist(track.artist) }
                 )
             }
         }

@@ -1,6 +1,5 @@
 package com.amit152116.riffle.ui.artist
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
@@ -50,10 +50,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.ColorUtils
 import com.amit152116.riffle.ui.library.LibraryViewModel
 import com.amit152116.riffle.ui.components.AsyncArtwork
+import com.amit152116.riffle.ui.components.rememberArtworkColors
 import com.amit152116.riffle.ui.components.TrackRow
 import com.amit152116.riffle.ui.player.PlayerViewModel
 
@@ -71,6 +75,30 @@ fun ArtistDetailScreen(
     
     val albumGroups = artistTracks.groupBy { it.album }
     val heroArtworkUri = artistTracks.firstOrNull { it.artworkUri != null }?.artworkUri
+    val artworkColors = rememberArtworkColors(heroArtworkUri)
+    val artworkBgOpaque = artworkColors.backgroundColor or 0xFF000000.toInt()
+    val artworkBackgroundIsNearBlack =
+        ColorUtils.calculateLuminance(artworkBgOpaque) < 0.08
+    val artworkActionColor = if (artworkBackgroundIsNearBlack) {
+        Color(artworkColors.primaryTextColor)
+    } else {
+        Color(artworkColors.backgroundColor)
+    }
+    val artworkActionColorArgb = artworkActionColor.toArgb() or 0xFF000000.toInt()
+    val artworkActionTextColor = if (artworkBackgroundIsNearBlack) {
+        val contrast = try {
+            ColorUtils.calculateContrast(
+                Color.White.toArgb() or 0xFF000000.toInt(),
+                artworkActionColorArgb
+            )
+        } catch (e: IllegalArgumentException) {
+            1.0
+        }
+        if (contrast >= 4.5) Color.White else Color.Black
+    } else {
+        Color(artworkColors.primaryTextColor)
+    }
+    val artworkOutlineColor = artworkActionColor
     var albumSort by remember { mutableStateOf("A-Z") }
     var songSort by remember { mutableStateOf("A-Z") }
     var albumSortExpanded by remember { mutableStateOf(false) }
@@ -163,15 +191,16 @@ fun ArtistDetailScreen(
                                 .height(48.dp),
                             shape = RoundedCornerShape(24.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = MaterialTheme.colorScheme.onSurface
-                            )
+                            contentColor = artworkOutlineColor
+                            ),
+                            border = BorderStroke(1.dp, artworkOutlineColor)
                         ) {
                             Icon(Icons.Filled.PlayArrow, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Play", style = MaterialTheme.typography.titleMedium)
                         }
 
-                        OutlinedButton(
+                        Button(
                             onClick = {
                                 if (artistTracks.isNotEmpty()) {
                                     val shuffled = artistTracks.shuffled()
@@ -182,7 +211,11 @@ fun ArtistDetailScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp),
-                            shape = RoundedCornerShape(24.dp)
+                            shape = RoundedCornerShape(24.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = artworkActionColor,
+                                contentColor = artworkActionTextColor
+                            )
                         ) {
                             Icon(Icons.Filled.Shuffle, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))

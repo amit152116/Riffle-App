@@ -576,7 +576,14 @@ fun QuickAccessCard(title: String, icon: ImageVector, modifier: Modifier = Modif
 }
 
 @Composable
-fun TrackSection(title: String, tracks: List<TrackUiModel>, playerViewModel: PlayerViewModel, modifier: Modifier = Modifier) {
+fun TrackSection(
+    title: String,
+    tracks: List<TrackUiModel>,
+    playerViewModel: PlayerViewModel,
+    modifier: Modifier = Modifier,
+    onNavigateToArtist: (String) -> Unit = {},
+    onNavigateToAlbum: (String) -> Unit = {}
+) {
     if (tracks.isEmpty()) return
     
     Column(modifier = modifier.padding(vertical = 16.dp)) {
@@ -607,7 +614,9 @@ fun TrackSection(title: String, tracks: List<TrackUiModel>, playerViewModel: Pla
                     .clickable { playerViewModel.playTrack(track, tracks) }
                     .padding(horizontal = 20.dp, vertical = 8.dp),
                 onPlayNext = { playerViewModel.playNext(track) },
-                onAddToQueue = { playerViewModel.addToQueue(track) }
+                onAddToQueue = { playerViewModel.addToQueue(track) },
+                onGoToArtist = { onNavigateToArtist(track.artist) },
+                onGoToAlbum = { onNavigateToAlbum(track.album) }
             )
         }
     }

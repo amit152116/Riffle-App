@@ -9,6 +9,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,9 +20,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -35,6 +37,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -48,6 +51,7 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import com.amit152116.riffle.ui.components.AsyncArtwork
 import com.amit152116.riffle.data.color.ArtworkColorExtractor
+import com.amit152116.riffle.ui.theme.favoriteRed
 
 @Composable
 fun MiniPlayer(viewModel: PlayerViewModel, modifier: Modifier = Modifier, onClick: () -> Unit = {}) {
@@ -56,6 +60,7 @@ fun MiniPlayer(viewModel: PlayerViewModel, modifier: Modifier = Modifier, onClic
     val isPlaying by viewModel.isPlaying.collectAsState()
     val currentPosition by viewModel.currentPosition.collectAsState()
     val duration by viewModel.duration.collectAsState()
+    var isFavorite by remember(currentTrack?.id) { mutableStateOf(false) }
     val swipeOffset = remember { Animatable(0f) }
     val swipeScope = rememberCoroutineScope()
     var titleWidthPx by remember { mutableIntStateOf(0) }
@@ -66,7 +71,7 @@ fun MiniPlayer(viewModel: PlayerViewModel, modifier: Modifier = Modifier, onClic
 
     val progress = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f
     val playerBackgroundStart = Color(
-        ArtworkColorExtractor.darkPlayerBackground(currentColors.playerAccentColor)
+        ArtworkColorExtractor.darkMiniPlayerBackground(currentColors.playerAccentColor)
     )
     val playerBackgroundEnd = Color(
         ArtworkColorExtractor.darkPlayerBackgroundEnd(currentColors.playerAccentColor)
@@ -74,18 +79,22 @@ fun MiniPlayer(viewModel: PlayerViewModel, modifier: Modifier = Modifier, onClic
 
     Box(
         modifier = modifier
+            .padding(horizontal = 8.dp)
             .fillMaxWidth()
-            .height(64.dp)
+            .height(60.dp)
+            .clip(RoundedCornerShape(10.dp))
             .background(playerBackgroundStart)
             .border(
                 width = 1.dp,
+                shape = RoundedCornerShape(10.dp),
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             AsyncArtwork(
@@ -160,20 +169,32 @@ fun MiniPlayer(viewModel: PlayerViewModel, modifier: Modifier = Modifier, onClic
                 )
             }
 
-            IconButton(onClick = { viewModel.togglePlayPause() }) {
-                Icon(
-                    if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    contentDescription = "Play/Pause",
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(-4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = { isFavorite = !isFavorite },
+                    modifier = Modifier.size(44.dp)
+                ) {
+                    Icon(
+                        if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                        contentDescription = "Favorite",
+                        tint = if (isFavorite) favoriteRed else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
-            IconButton(onClick = { viewModel.skipNext() }) {
-                Icon(
-                    Icons.Filled.SkipNext,
-                    contentDescription = "Next",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                IconButton(
+                    onClick = { viewModel.togglePlayPause() },
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        contentDescription = "Play/Pause",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(30.dp)
+                    )
+                }
             }
         }
         
@@ -189,7 +210,7 @@ fun MiniPlayer(viewModel: PlayerViewModel, modifier: Modifier = Modifier, onClic
                 modifier = Modifier
                     .fillMaxWidth(progress.coerceIn(0f, 1f))
                     .height(3.dp)
-                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .background(Color.White)
             )
         }
     }

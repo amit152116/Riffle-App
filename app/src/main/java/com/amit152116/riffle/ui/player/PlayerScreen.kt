@@ -157,8 +157,8 @@ fun PlayerScreen(viewModel: PlayerViewModel, onClose: () -> Unit = {}) {
                 Brush.verticalGradient(
                     colorStops = arrayOf(
                         0.0f to playerBackgroundStart,
-                        0.75f to lerp(playerBackgroundStart, playerBackgroundEnd, 0.5f),
-                        1.0f to playerBackgroundEnd
+                        0.60f to lerp(playerBackgroundStart, playerBackgroundEnd, 0.4f),
+                        1.0f to lerp(playerBackgroundStart, playerBackgroundEnd, 0.8f)
                     )
                 )
             )
@@ -291,6 +291,7 @@ fun PlayerScreen(viewModel: PlayerViewModel, onClose: () -> Unit = {}) {
                         activeTrackColor = MaterialTheme.colorScheme.primaryContainer,
                         inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant
                     ),
+                    activeTrackColorOverride = Color.White,
                     modifier = Modifier.fillMaxWidth()
                 )
                 
@@ -347,7 +348,8 @@ fun PlayerScreen(viewModel: PlayerViewModel, onClose: () -> Unit = {}) {
                         .size(64.dp)
                         .scale(playButtonScale)
                         .clip(CircleShape)
-                        .border(1.dp, MaterialTheme.colorScheme.onBackground, CircleShape)
+                        .background(Color.White)
+                        .border(1.dp, Color.White, CircleShape)
                         .clickable { viewModel.togglePlayPause() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -361,7 +363,7 @@ fun PlayerScreen(viewModel: PlayerViewModel, onClose: () -> Unit = {}) {
                         Icon(
                             imageVector = if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                             contentDescription = if (playing) "Pause" else "Play",
-                            tint = MaterialTheme.colorScheme.onBackground,
+                            tint = Color.Black,
                             modifier = Modifier.size(38.dp)
                         )
                     }
@@ -652,6 +654,9 @@ fun QueueSheetContent(viewModel: PlayerViewModel) {
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f))
+                            .clickable {
+                                viewModel.playTrack(currentTrack!!, viewModel.currentPlaylist.value)
+                            }
                             .padding(8.dp)
                     )
                 }
@@ -676,6 +681,9 @@ fun QueueSheetContent(viewModel: PlayerViewModel) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                viewModel.playTrack(track, viewModel.currentPlaylist.value)
+                            }
                             .padding(8.dp),
                         leadingText = "${index + 1}",
                         trailingAction = { viewModel.removeFromQueue(originalIndex) },

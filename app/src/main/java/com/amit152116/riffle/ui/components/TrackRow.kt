@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -43,7 +45,10 @@ fun TrackRow(
     leadingText: String? = null,
     trailingAction: (() -> Unit)? = null,
     trailingActionIcon: ImageVector = Icons.Filled.MoreVert,
-    trailingActionDescription: String = "More options"
+    trailingActionDescription: String = "More options",
+    selectionMode: Boolean = false,
+    selected: Boolean = false,
+    onSelectionToggle: () -> Unit = {}
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -91,58 +96,70 @@ fun TrackRow(
             )
         }
 
-        Box {
+        if (selectionMode) {
             IconButton(
-                modifier = Modifier.offset(x = 18.dp),
-                onClick = {
-                if (trailingAction != null) trailingAction() else menuExpanded = true
-                }
+                onClick = onSelectionToggle
             ) {
                 Icon(
-                    trailingActionIcon,
-                    contentDescription = trailingActionDescription,
+                    if (selected) Icons.Filled.Check else Icons.Filled.RadioButtonUnchecked,
+                    contentDescription = if (selected) "Selected" else "Not selected",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            DropdownMenu(
-                expanded = menuExpanded,
-                onDismissRequest = { menuExpanded = false }
-            ) {
-                SongMenuItem("Play next") {
-                    onPlayNext()
-                    menuExpanded = false
-                }
-                SongMenuItem("Add to playing queue") {
-                    onAddToQueue()
-                    menuExpanded = false
-                }
-                SongMenuItem("Add to playlist") { showUnavailable("Playlist support coming soon") }
-                SongMenuItem("Go to album") {
-                    onGoToAlbum()
-                    menuExpanded = false
-                }
-                SongMenuItem("Go to artist") {
-                    onGoToArtist()
-                    menuExpanded = false
-                }
-                SongMenuItem("Share") {
-                    context.startActivity(
-                        Intent.createChooser(
-                            Intent(Intent.ACTION_SEND).apply {
-                                type = "audio/*"
-                                putExtra(Intent.EXTRA_STREAM, track.mediaUri)
-                                putExtra(Intent.EXTRA_TEXT, "${track.title} • ${track.artist}")
-                            },
-                            "Share song"
-                        )
+        } else {
+            Box {
+                IconButton(
+                    modifier = Modifier.offset(x = 18.dp),
+                    onClick = {
+                        if (trailingAction != null) trailingAction() else menuExpanded = true
+                    }
+                ) {
+                    Icon(
+                        trailingActionIcon,
+                        contentDescription = trailingActionDescription,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    menuExpanded = false
                 }
-                SongMenuItem("Tag editor") { showUnavailable("Tag editor support coming soon") }
-                SongMenuItem("Details") { showUnavailable("Song details support coming soon") }
-                SongMenuItem("Set as ringtone") { showUnavailable("Ringtone support coming soon") }
-                SongMenuItem("Add to blacklist") { showUnavailable("Blacklist support coming soon") }
-                SongMenuItem("Delete from device") { showUnavailable("Delete support coming soon") }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false }
+                ) {
+                    SongMenuItem("Play next") {
+                        onPlayNext()
+                        menuExpanded = false
+                    }
+                    SongMenuItem("Add to playing queue") {
+                        onAddToQueue()
+                        menuExpanded = false
+                    }
+                    SongMenuItem("Add to playlist") { showUnavailable("Playlist support coming soon") }
+                    SongMenuItem("Go to album") {
+                        onGoToAlbum()
+                        menuExpanded = false
+                    }
+                    SongMenuItem("Go to artist") {
+                        onGoToArtist()
+                        menuExpanded = false
+                    }
+                    SongMenuItem("Share") {
+                        context.startActivity(
+                            Intent.createChooser(
+                                Intent(Intent.ACTION_SEND).apply {
+                                    type = "audio/*"
+                                    putExtra(Intent.EXTRA_STREAM, track.mediaUri)
+                                    putExtra(Intent.EXTRA_TEXT, "${track.title} • ${track.artist}")
+                                },
+                                "Share song"
+                            )
+                        )
+                        menuExpanded = false
+                    }
+                    SongMenuItem("Tag editor") { showUnavailable("Tag editor support coming soon") }
+                    SongMenuItem("Details") { showUnavailable("Song details support coming soon") }
+                    SongMenuItem("Set as ringtone") { showUnavailable("Ringtone support coming soon") }
+                    SongMenuItem("Add to blacklist") { showUnavailable("Blacklist support coming soon") }
+                    SongMenuItem("Delete from device") { showUnavailable("Delete support coming soon") }
+                }
             }
         }
     }

@@ -1,7 +1,6 @@
 package com.amit152116.riffle.ui.components
 
 import android.net.Uri
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,8 +12,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.amit152116.riffle.R
@@ -40,19 +39,19 @@ fun AsyncArtwork(
             contentScale = ContentScale.Crop,
             modifier = clippedModifier,
             error = {
-                Image(
-                    painter = painterResource(id = R.drawable.screen),
+                AsyncImage(
+                    model = R.mipmap.default_track,
                     contentDescription = contentDescription,
-                    contentScale = ContentScale.Crop,
+                    contentScale = ContentScale.FillBounds,
                     modifier = Modifier.fillMaxSize()
                 )
             }
         )
     } else {
-        Image(
-            painter = painterResource(id = R.drawable.screen),
+        AsyncImage(
+            model = R.mipmap.default_track,
             contentDescription = contentDescription,
-            contentScale = ContentScale.Crop,
+            contentScale = ContentScale.FillBounds,
             modifier = clippedModifier
         )
     }

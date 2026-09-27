@@ -414,10 +414,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _currentPlaylist.value = updatedList
     }
 
+    fun playNext(tracks: List<TrackUiModel>) {
+        tracks.asReversed().forEach(::playNext)
+    }
+
     fun addToQueue(track: TrackUiModel) {
         val p = player ?: return
         p.addMediaItem(track.toMediaItem())
         _currentPlaylist.value = _currentPlaylist.value + track
+    }
+
+    fun addToQueue(tracks: List<TrackUiModel>) {
+        tracks.forEach(::addToQueue)
     }
 
     fun moveQueueItem(fromIndex: Int, toIndex: Int) {

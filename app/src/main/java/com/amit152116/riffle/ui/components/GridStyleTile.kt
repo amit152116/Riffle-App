@@ -72,7 +72,7 @@ fun GridStyleTile(
                     uri = artworkUri,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .aspectRatio(1f),
+                        .aspectRatio(1.08f),
                     shape = RoundedCornerShape(0.dp)
                 )
                 TileText(
@@ -103,7 +103,7 @@ fun GridStyleTile(
             TileText(title, subtitle, Modifier.padding(top = 8.dp), centered = true)
         }
 
-        // Retro's "Image" tile is edge-to-edge with sharp corners, no card - unlike GradientImage below.
+        // Image tiles are edge-to-edge with sharp corners, unlike gradient image tiles.
         GridStyle.IMAGE -> Box(
             modifier = modifier
                 .fillMaxWidth()
@@ -150,7 +150,7 @@ fun GridStyleTile(
 }
 
 @Composable
-private fun rememberArtworkColors(artworkUri: Uri?): ArtworkColors {
+fun rememberArtworkColors(artworkUri: Uri?): ArtworkColors {
     val context = LocalContext.current.applicationContext
     return produceState(
         initialValue = ArtworkColorExtractor.extract(null),
@@ -199,7 +199,7 @@ private fun ColoredCardTile(
                 uri = artworkUri,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(1f),
+                    .aspectRatio(1.08f),
                 shape = RoundedCornerShape(0.dp)
             )
             TileText(

@@ -2,7 +2,6 @@ package com.amit152116.riffle.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,7 +18,7 @@ import androidx.compose.material3.SliderColors
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.dp
@@ -38,10 +37,12 @@ fun RiffleSlider(
         thumbColor = MaterialTheme.colorScheme.primaryContainer,
         activeTrackColor = MaterialTheme.colorScheme.primaryContainer,
         inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant
-    )
+    ),
+    activeTrackColorOverride: Color? = null
 ) {
-    val activeTrackColor = MaterialTheme.colorScheme.primaryContainer
+    val activeTrackColor = activeTrackColorOverride ?: MaterialTheme.colorScheme.primaryContainer
     val inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant
+    val thumbColor = activeTrackColor
 
     Column(modifier = modifier) {
         Slider(
@@ -54,9 +55,7 @@ fun RiffleSlider(
                 Box(
                     modifier = Modifier
                         .size(16.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer)
-                        .border(2.dp, MaterialTheme.colorScheme.background, CircleShape)
+                        .background(thumbColor, CircleShape)
                 )
             },
             track = { sliderState ->
