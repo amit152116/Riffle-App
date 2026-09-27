@@ -11,6 +11,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -21,7 +22,9 @@ fun RiffleTopBar(
     onBack: (() -> Unit)? = null,
     navigationIcon: (@Composable () -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
-    titleStyle: TextStyle = MaterialTheme.typography.headlineMedium
+    titleStyle: TextStyle = MaterialTheme.typography.headlineMedium,
+    containerColor: Color = MaterialTheme.colorScheme.background,
+    contentColor: Color = MaterialTheme.colorScheme.onBackground
 ) {
     TopAppBar(
         title = titleContent ?: { Text(text = title, style = titleStyle) },
@@ -36,10 +39,10 @@ fun RiffleTopBar(
         },
         actions = actions,
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-            titleContentColor = MaterialTheme.colorScheme.onBackground,
-            navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
-            actionIconContentColor = MaterialTheme.colorScheme.onBackground
+            containerColor = containerColor,
+            titleContentColor = contentColor,
+            navigationIconContentColor = contentColor,
+            actionIconContentColor = contentColor
         )
     )
 }

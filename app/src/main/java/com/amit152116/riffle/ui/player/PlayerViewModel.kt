@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.app.Application
 import android.content.ComponentName
+import androidx.core.graphics.drawable.toBitmap
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -13,15 +14,20 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.amit152116.riffle.data.LocalAudioRepository
+import com.amit152116.riffle.data.color.ArtworkColorExtractor
 import com.amit152116.riffle.data.model.TrackUiModel
 import com.amit152116.riffle.service.PlaybackService
 import com.google.common.util.concurrent.ListenableFuture
+import coil.imageLoader
+import coil.request.ImageRequest
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private fun TrackUiModel.toMediaItem(): MediaItem =
     MediaItem.Builder()
@@ -53,6 +59,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     
     private val _currentTrack = MutableStateFlow<TrackUiModel?>(null)
     val currentTrack = _currentTrack.asStateFlow()
+
+    private val _currentColors = MutableStateFlow(ArtworkColorExtractor.extract(null))
+    val currentColors = _currentColors.asStateFlow()
+    private var colorExtractionJob: Job? = null
     
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying = _isPlaying.asStateFlow()
@@ -167,7 +177,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     val trackId = mediaItem.mediaId.toLongOrNull()
                     val track = _currentPlaylist.value.find { it.id == trackId }
                     if (track != null) {
-                        _currentTrack.value = track
+                        setCurrentTrack(track)
                     }
                 }
             }
@@ -202,8 +212,35 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         p.prepare()
         p.play()
-        _currentTrack.value = track
+        setCurrentTrack(track)
         saveState()
+    }
+
+    private fun setCurrentTrack(track: TrackUiModel) {
+        _currentTrack.value = track
+        colorExtractionJob?.cancel()
+        colorExtractionJob = viewModelScope.launch {
+            val colors = withContext(Dispatchers.IO) {
+                val bitmap = track.artworkUri?.let { artworkUri ->
+                    runCatching {
+                        getApplication<Application>().imageLoader
+                            .execute(
+                                ImageRequest.Builder(getApplication<Application>())
+                                    .data(artworkUri)
+                                    .allowHardware(false)
+                                    .build()
+                            )
+                            .drawable
+                            ?.toBitmap()
+                    }.getOrNull()
+                }
+
+                withContext(Dispatchers.Default) {
+                    ArtworkColorExtractor.extract(bitmap)
+                }
+            }
+            _currentColors.value = colors
+        }
     }
 
     private fun saveState() {
@@ -242,7 +279,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 val restoredTrackIndex = restoredQueue.indexOf(restoredTrack).coerceAtLeast(0)
 
                 _currentPlaylist.value = restoredQueue
-                _currentTrack.value = restoredTrack
+                setCurrentTrack(restoredTrack)
 
                 val p = player ?: return@launch
                 p.setMediaItems(restoredQueue.map { it.toMediaItem() }, restoredTrackIndex, savedPositionMs)

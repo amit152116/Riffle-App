@@ -255,7 +255,7 @@ fun ArtistsContent(viewModel: LibraryViewModel, onNavigateToArtist: (String) -> 
         gridItems(artists) { artist ->
             GridStyleTile(
                 title = artist.name,
-                subtitle = "${artist.trackCount} tracks",
+                subtitle = if (gridStyle == GridStyle.COLORED_CARD) null else "${artist.trackCount} tracks",
                 artworkUri = artist.artworkUri,
                 style = gridStyle,
                 onClick = { onNavigateToArtist(artist.name) }

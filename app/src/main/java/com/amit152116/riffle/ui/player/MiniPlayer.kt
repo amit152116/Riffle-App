@@ -41,15 +41,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import com.amit152116.riffle.ui.components.AsyncArtwork
+import com.amit152116.riffle.data.color.ArtworkColorExtractor
 
 @Composable
 fun MiniPlayer(viewModel: PlayerViewModel, modifier: Modifier = Modifier, onClick: () -> Unit = {}) {
     val currentTrack by viewModel.currentTrack.collectAsState()
+    val currentColors by viewModel.currentColors.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
     val currentPosition by viewModel.currentPosition.collectAsState()
     val duration by viewModel.duration.collectAsState()
@@ -62,12 +65,18 @@ fun MiniPlayer(viewModel: PlayerViewModel, modifier: Modifier = Modifier, onClic
     if (currentTrack == null) return
 
     val progress = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f
+    val playerBackgroundStart = Color(
+        ArtworkColorExtractor.darkPlayerBackground(currentColors.playerAccentColor)
+    )
+    val playerBackgroundEnd = Color(
+        ArtworkColorExtractor.darkPlayerBackgroundEnd(currentColors.playerAccentColor)
+    )
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(64.dp)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .background(playerBackgroundStart)
             .border(
                 width = 1.dp,
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
@@ -174,7 +183,7 @@ fun MiniPlayer(viewModel: PlayerViewModel, modifier: Modifier = Modifier, onClic
                 .align(Alignment.BottomStart)
                 .fillMaxWidth()
                 .height(3.dp)
-                .background(MaterialTheme.colorScheme.outlineVariant)
+                    .background(MaterialTheme.colorScheme.outlineVariant)
         ) {
             Box(
                 modifier = Modifier

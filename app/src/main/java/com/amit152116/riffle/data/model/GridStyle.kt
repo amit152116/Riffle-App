@@ -5,5 +5,7 @@ enum class GridStyle(val label: String) {
     CARD("Card"),
     CIRCULAR("Circular"),
     IMAGE("Image"),
-    GRADIENT_IMAGE("Gradient Image")
+    GRADIENT_IMAGE("Gradient Image"),
+    // Keep this at the end so existing ordinal-based preferences remain valid.
+    COLORED_CARD("Colored Card")
 }

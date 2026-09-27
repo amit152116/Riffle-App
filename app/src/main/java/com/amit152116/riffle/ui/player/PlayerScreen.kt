@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -84,10 +85,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.amit152116.riffle.data.model.TrackUiModel
+import com.amit152116.riffle.data.color.ArtworkColorExtractor
 import com.amit152116.riffle.ui.components.AsyncArtwork
 import com.amit152116.riffle.ui.components.TrackRow
 import java.util.Locale
@@ -98,6 +102,7 @@ enum class PlayerViewMode { ARTWORK, LYRICS }
 @Composable
 fun PlayerScreen(viewModel: PlayerViewModel, onClose: () -> Unit = {}) {
     val currentTrack by viewModel.currentTrack.collectAsState()
+    val currentColors by viewModel.currentColors.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
     val isShuffleEnabled by viewModel.isShuffleEnabled.collectAsState()
     val repeatMode by viewModel.repeatMode.collectAsState()
@@ -138,6 +143,34 @@ fun PlayerScreen(viewModel: PlayerViewModel, onClose: () -> Unit = {}) {
 
     if (currentTrack == null) return
 
+    val playerBackgroundStart = Color(
+        ArtworkColorExtractor.darkPlayerBackground(currentColors.playerAccentColor)
+    )
+    val playerBackgroundEnd = Color(
+        ArtworkColorExtractor.darkPlayerBackgroundEnd(currentColors.playerAccentColor)
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colorStops = arrayOf(
+                        0.0f to playerBackgroundStart,
+                        0.75f to lerp(playerBackgroundStart, playerBackgroundEnd, 0.5f),
+                        1.0f to playerBackgroundEnd
+                    )
+                )
+            )
+    ) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .background(Color.Black.copy(alpha = 0.35f))
+                .statusBarsPadding()
+                .height(1.dp)
+        )
     Scaffold(
         topBar = {
             RiffleTopBar(
@@ -147,6 +180,7 @@ fun PlayerScreen(viewModel: PlayerViewModel, onClose: () -> Unit = {}) {
                         Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Close")
                     }
                 },
+                containerColor = Color.Transparent,
                 actions = {
                     IconButton(onClick = { showSleepTimerDialog = true }) {
                         Icon(
@@ -165,7 +199,7 @@ fun PlayerScreen(viewModel: PlayerViewModel, onClose: () -> Unit = {}) {
                 }
             )
         },
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = Color.Transparent
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -410,6 +444,7 @@ fun PlayerScreen(viewModel: PlayerViewModel, onClose: () -> Unit = {}) {
                 QueueSheetContent(viewModel = viewModel)
             }
         }
+    }
     }
 
     if (showSleepTimerDialog) {

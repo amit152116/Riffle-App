@@ -1,6 +1,7 @@
 package com.amit152116.riffle.ui.components
 
 import android.net.Uri
+import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -17,6 +18,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,7 +28,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.imageLoader
+import coil.request.ImageRequest
+import com.amit152116.riffle.data.color.ArtworkColorExtractor
+import com.amit152116.riffle.data.color.ArtworkColors
 import com.amit152116.riffle.data.model.GridStyle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun GridStyleTile(
@@ -125,6 +134,84 @@ fun GridStyleTile(
                 OverlayTitle(title, modifier = Modifier.align(Alignment.BottomCenter))
             }
         }
+
+        GridStyle.COLORED_CARD -> {
+            val colors = rememberArtworkColors(artworkUri)
+            ColoredCardTile(
+                title = title,
+                subtitle = subtitle,
+                artworkUri = artworkUri,
+                colors = colors,
+                onClick = onClick,
+                modifier = modifier
+            )
+        }
+    }
+}
+
+@Composable
+private fun rememberArtworkColors(artworkUri: Uri?): ArtworkColors {
+    val context = LocalContext.current.applicationContext
+    return produceState(
+        initialValue = ArtworkColorExtractor.extract(null),
+        key1 = artworkUri
+    ) {
+        value = withContext(Dispatchers.IO) {
+            val bitmap = artworkUri?.let { uri ->
+                runCatching {
+                    context.imageLoader
+                        .execute(
+                            ImageRequest.Builder(context)
+                                .data(uri)
+                                .allowHardware(false)
+                                .build()
+                        )
+                        .drawable
+                        ?.toBitmap()
+                }.getOrNull()
+            }
+            withContext(Dispatchers.Default) {
+                ArtworkColorExtractor.extract(bitmap)
+            }
+        }
+    }.value
+}
+
+@Composable
+private fun ColoredCardTile(
+    title: String,
+    subtitle: String?,
+    artworkUri: Uri?,
+    colors: ArtworkColors,
+    onClick: () -> Unit,
+    modifier: Modifier
+) {
+    Card(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(
+            containerColor = Color(colors.backgroundColor)
+        ),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column {
+            AsyncArtwork(
+                uri = artworkUri,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f),
+                shape = RoundedCornerShape(0.dp)
+            )
+            TileText(
+                title = title,
+                subtitle = subtitle,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                titleColor = Color(colors.primaryTextColor),
+                subtitleColor = Color(colors.secondaryTextColor)
+            )
+        }
     }
 }
 
@@ -133,7 +220,9 @@ private fun TileText(
     title: String,
     subtitle: String?,
     modifier: Modifier = Modifier,
-    centered: Boolean = false
+    centered: Boolean = false,
+    titleColor: Color = MaterialTheme.colorScheme.onSurface,
+    subtitleColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -142,7 +231,7 @@ private fun TileText(
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = titleColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = if (centered) TextAlign.Center else TextAlign.Start
@@ -151,7 +240,7 @@ private fun TileText(
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = subtitleColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = if (centered) TextAlign.Center else TextAlign.Start
