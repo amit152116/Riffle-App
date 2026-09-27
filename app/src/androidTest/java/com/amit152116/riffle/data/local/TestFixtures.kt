@@ -214,4 +214,24 @@ object TestFixtures {
         configHash = configHash,
         analyzedAt = analyzedAt
     )
+
+    fun musicBrainzMatch(
+        audioContentId: Long,
+        acoustidId: String? = "acoustid-1",
+        recordingMbid: String? = "recording-mbid-1",
+        recordingTitle: String? = "Test Recording",
+        releaseTitle: String? = "Test Release",
+        releaseMbid: String? = "release-mbid-1",
+        score: Double? = 0.95,
+        parsedAt: Long? = 1_000L
+    ) = com.amit152116.riffle.data.local.musicbrainz.MusicBrainzMatch(
+        audioContentId = audioContentId,
+        acoustidId = acoustidId,
+        recordingMbid = recordingMbid,
+        recordingTitle = recordingTitle,
+        releaseTitle = releaseTitle,
+        releaseMbid = releaseMbid,
+        score = score,
+        parsedAt = parsedAt
+    )
 }

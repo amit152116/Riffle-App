@@ -23,6 +23,12 @@ import com.amit152116.riffle.data.local.library.IngestError
 import com.amit152116.riffle.data.local.library.LibraryDao
 import com.amit152116.riffle.data.local.library.ScanRun
 import com.amit152116.riffle.data.local.library.Track
+import com.amit152116.riffle.data.local.musicbrainz.AcoustidCache
+import com.amit152116.riffle.data.local.musicbrainz.AcoustidCacheContent
+import com.amit152116.riffle.data.local.musicbrainz.MbArtist
+import com.amit152116.riffle.data.local.musicbrainz.MbRecordingArtist
+import com.amit152116.riffle.data.local.musicbrainz.MusicBrainzDao
+import com.amit152116.riffle.data.local.musicbrainz.MusicBrainzMatch
 
 @Database(
     entities = [
@@ -39,7 +45,12 @@ import com.amit152116.riffle.data.local.library.Track
         GroupMember::class,
         QuarantineLog::class,
         AudioFeatures::class,
-        QualityFlag::class
+        QualityFlag::class,
+        MusicBrainzMatch::class,
+        MbArtist::class,
+        MbRecordingArtist::class,
+        AcoustidCache::class,
+        AcoustidCacheContent::class
     ],
     version = 1,
     exportSchema = true
@@ -50,6 +61,7 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun fingerprintDao(): FingerprintDao
     abstract fun dedupDao(): DedupDao
     abstract fun analysisDao(): AnalysisDao
+    abstract fun musicBrainzDao(): MusicBrainzDao
 
     companion object {
         @Volatile private var instance: RiffleDatabase? = null
