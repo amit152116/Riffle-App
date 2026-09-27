@@ -174,4 +174,44 @@ object TestFixtures {
         decision = decision,
         decidedAt = decidedAt
     )
+
+    fun audioFeatures(
+        audioContentId: Long,
+        bpm: Double? = 120.0,
+        bpmConfidence: Double? = 0.9,
+        keyName: String? = "A",
+        scale: String? = "minor",
+        keyStrength: Double? = 0.8,
+        loudnessLufs: Double? = -12.3,
+        danceability: Double? = 0.7,
+        energy: Double? = 0.6,
+        spectralCentroid: Double? = 2000.0,
+        onsetRate: Double? = 4.0,
+        dynamicComplexity: Double? = 3.0,
+        dissonance: Double? = 0.2,
+        zcr: Double? = 0.1,
+        mfccMean: ByteArray? = ByteArray(104),
+        extractorVersion: String? = "essentia-1.0",
+        configHash: String? = "cfg-1",
+        analyzedAt: Long? = 1_000L
+    ) = com.amit152116.riffle.data.local.analysis.AudioFeatures(
+        audioContentId = audioContentId,
+        bpm = bpm,
+        bpmConfidence = bpmConfidence,
+        keyName = keyName,
+        scale = scale,
+        keyStrength = keyStrength,
+        loudnessLufs = loudnessLufs,
+        danceability = danceability,
+        energy = energy,
+        spectralCentroid = spectralCentroid,
+        onsetRate = onsetRate,
+        dynamicComplexity = dynamicComplexity,
+        dissonance = dissonance,
+        zcr = zcr,
+        mfccMean = mfccMean,
+        extractorVersion = extractorVersion,
+        configHash = configHash,
+        analyzedAt = analyzedAt
+    )
 }

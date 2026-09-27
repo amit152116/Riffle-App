@@ -5,6 +5,9 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.amit152116.riffle.data.local.analysis.AnalysisDao
+import com.amit152116.riffle.data.local.analysis.AudioFeatures
+import com.amit152116.riffle.data.local.analysis.QualityFlag
 import com.amit152116.riffle.data.local.dedup.DedupDao
 import com.amit152116.riffle.data.local.dedup.DupGroup
 import com.amit152116.riffle.data.local.dedup.GroupContent
@@ -34,7 +37,9 @@ import com.amit152116.riffle.data.local.library.Track
         DupGroup::class,
         GroupContent::class,
         GroupMember::class,
-        QuarantineLog::class
+        QuarantineLog::class,
+        AudioFeatures::class,
+        QualityFlag::class
     ],
     version = 1,
     exportSchema = true
@@ -44,6 +49,7 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun libraryDao(): LibraryDao
     abstract fun fingerprintDao(): FingerprintDao
     abstract fun dedupDao(): DedupDao
+    abstract fun analysisDao(): AnalysisDao
 
     companion object {
         @Volatile private var instance: RiffleDatabase? = null
