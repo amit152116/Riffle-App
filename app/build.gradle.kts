@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.androidx.room)
 }
 
 android {
@@ -36,6 +37,14 @@ android {
     }
 }
 
+room {
+    // Room Gradle Plugin: configures the Room compiler's schema output AND
+    // automatically adds the exported schema into the androidTest resource
+    // sources for MigrationTestHelper (since Room Gradle Plugin 2.7.0-alpha07)
+    // - no manual sourceSets wiring needed, per the official docs.
+    schemaDirectory("$projectDir/schemas")
+}
+
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
@@ -65,6 +74,28 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
 
-ksp {
-    arg("room.schemaLocation", "$projectDir/schemas")
+// Confirmed via `./gradlew :app:dependencyInsight --dependency <name>
+// --configuration debugAndroidTestRuntimeClasspath`:
+// - kotlinx-serialization-json already resolves correctly to 1.8.1 (Room's
+//   room-migration-jvm:2.8.5 requests it directly; nothing strict-pins json
+//   itself, so normal conflict resolution already picks 1.8.1). Not touched.
+// - kotlinx-serialization-core is the only actual conflict: Compose BOM
+//   strictly pins it to 1.7.3, but json 1.8.1's own module metadata wants
+//   core 1.8.1 - the resulting 1.7.3/1.8.1 pairing throws AbstractMethodError
+//   on GeneratedSerializer.typeParametersSerializers() at runtime (used by
+//   Room's MigrationTestHelper). Per Gradle's docs on competing `strictly`
+//   declarations, a same-level `constraints {}` block can't win here (two
+//   same-level strictly ranges that don't overlap fail the build outright
+//   rather than picking the higher one) - force()/eachDependency{useVersion()}
+//   are the only two ways a project can override a platform's strictly.
+configurations.all {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "org.jetbrains.kotlinx" &&
+            (requested.name == "kotlinx-serialization-core" || requested.name == "kotlinx-serialization-core-jvm")
+        ) {
+            useVersion("1.8.1")
+            because("Match the core version kotlinx-serialization-json 1.8.1 (required by Room 2.8.5's room-migration) actually needs; Compose BOM's strict 1.7.3 pin is incompatible with it.")
+        }
+    }
 }
+
