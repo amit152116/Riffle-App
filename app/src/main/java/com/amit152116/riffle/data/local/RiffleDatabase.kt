@@ -34,6 +34,12 @@ import com.amit152116.riffle.data.local.musicbrainz.MbArtist
 import com.amit152116.riffle.data.local.musicbrainz.MbRecordingArtist
 import com.amit152116.riffle.data.local.musicbrainz.MusicBrainzDao
 import com.amit152116.riffle.data.local.musicbrainz.MusicBrainzMatch
+import com.amit152116.riffle.data.local.playback.BlacklistedTrack
+import com.amit152116.riffle.data.local.playback.FavoriteTrack
+import com.amit152116.riffle.data.local.playback.PlayHistory
+import com.amit152116.riffle.data.local.playback.Playlist
+import com.amit152116.riffle.data.local.playback.PlaybackDao
+import com.amit152116.riffle.data.local.playback.PlaylistTrack
 
 @Database(
     entities = [
@@ -59,7 +65,12 @@ import com.amit152116.riffle.data.local.musicbrainz.MusicBrainzMatch
         ClusterRun::class,
         ClusterCentroid::class,
         ClusterAssignment::class,
-        TrackSimilarity::class
+        TrackSimilarity::class,
+        PlayHistory::class,
+        FavoriteTrack::class,
+        BlacklistedTrack::class,
+        Playlist::class,
+        PlaylistTrack::class
     ],
     version = 1,
     exportSchema = true
@@ -72,6 +83,7 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun analysisDao(): AnalysisDao
     abstract fun musicBrainzDao(): MusicBrainzDao
     abstract fun clusterDao(): ClusterDao
+    abstract fun playbackDao(): PlaybackDao
 
     companion object {
         @Volatile private var instance: RiffleDatabase? = null

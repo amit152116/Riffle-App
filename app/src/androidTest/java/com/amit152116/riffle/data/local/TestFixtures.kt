@@ -266,4 +266,7 @@ object TestFixtures {
         combinedScore = combinedScore,
         configHash = configHash
     )
+
+    fun playlist(name: String = "My Playlist", createdAt: Long = 1_000L) =
+        com.amit152116.riffle.data.local.playback.Playlist(name = name, createdAt = createdAt)
 }
