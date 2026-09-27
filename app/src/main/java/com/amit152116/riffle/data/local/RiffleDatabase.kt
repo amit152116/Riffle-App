@@ -5,6 +5,11 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.amit152116.riffle.data.local.fingerprint.AudioPair
+import com.amit152116.riffle.data.local.fingerprint.Fingerprint
+import com.amit152116.riffle.data.local.fingerprint.FingerprintDao
+import com.amit152116.riffle.data.local.fingerprint.MatchRun
+import com.amit152116.riffle.data.local.fingerprint.RunTrack
 import com.amit152116.riffle.data.local.library.AudioContent
 import com.amit152116.riffle.data.local.library.IngestError
 import com.amit152116.riffle.data.local.library.LibraryDao
@@ -16,7 +21,11 @@ import com.amit152116.riffle.data.local.library.Track
         AudioContent::class,
         ScanRun::class,
         Track::class,
-        IngestError::class
+        IngestError::class,
+        Fingerprint::class,
+        MatchRun::class,
+        RunTrack::class,
+        AudioPair::class
     ],
     version = 1,
     exportSchema = true
@@ -24,6 +33,7 @@ import com.amit152116.riffle.data.local.library.Track
 @TypeConverters(Converters::class)
 abstract class RiffleDatabase : RoomDatabase() {
     abstract fun libraryDao(): LibraryDao
+    abstract fun fingerprintDao(): FingerprintDao
 
     companion object {
         @Volatile private var instance: RiffleDatabase? = null

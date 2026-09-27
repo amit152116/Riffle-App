@@ -92,4 +92,72 @@ object TestFixtures {
         lastAttemptAt = lastAttemptAt,
         resolvedAt = resolvedAt
     )
+
+    fun fingerprint(
+        audioContentId: Long,
+        analyzer: String = "essentia",
+        analyzerVersion: String = "1.0.0",
+        configHash: String = "cfg-1",
+        purpose: FingerprintPurpose = FingerprintPurpose.CANONICAL,
+        algorithm: Int? = 1,
+        fpRaw: ByteArray = byteArrayOf(1, 2, 3),
+        fpLength: Int = 3,
+        computedAt: Long? = 1_000L
+    ) = com.amit152116.riffle.data.local.fingerprint.Fingerprint(
+        audioContentId = audioContentId,
+        analyzer = analyzer,
+        analyzerVersion = analyzerVersion,
+        configHash = configHash,
+        purpose = purpose,
+        algorithm = algorithm,
+        fpRaw = fpRaw,
+        fpLength = fpLength,
+        computedAt = computedAt
+    )
+
+    fun matchRun(
+        createdAt: Long? = 1_000L,
+        fingerprintConfig: String? = "cfg-1",
+        matchConfig: String? = "match-cfg-1",
+        softwareVersion: String? = "0.1.0",
+        status: RunStatus = RunStatus.COMPLETE
+    ) = com.amit152116.riffle.data.local.fingerprint.MatchRun(
+        createdAt = createdAt,
+        fingerprintConfig = fingerprintConfig,
+        matchConfig = matchConfig,
+        softwareVersion = softwareVersion,
+        status = status
+    )
+
+    fun audioPair(
+        runId: Long,
+        aContentId: Long,
+        bContentId: Long,
+        bestOffset: Int? = 0,
+        peakVotes: Int? = 10,
+        peakVoteRatio: Double? = 0.9,
+        matchedSpanItems: Int? = 100,
+        matchedSpanSeconds: Double? = 30.0,
+        coverageA: Double? = 0.95,
+        coverageB: Double? = 0.95,
+        meanBitError: Double? = 0.01,
+        segmentCount: Int? = 1,
+        tier: Int? = 1,
+        verifiedDirect: Boolean = false
+    ) = com.amit152116.riffle.data.local.fingerprint.AudioPair(
+        runId = runId,
+        aContentId = aContentId,
+        bContentId = bContentId,
+        bestOffset = bestOffset,
+        peakVotes = peakVotes,
+        peakVoteRatio = peakVoteRatio,
+        matchedSpanItems = matchedSpanItems,
+        matchedSpanSeconds = matchedSpanSeconds,
+        coverageA = coverageA,
+        coverageB = coverageB,
+        meanBitError = meanBitError,
+        segmentCount = segmentCount,
+        tier = tier,
+        verifiedDirect = verifiedDirect
+    )
 }
