@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,16 +37,25 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import com.amit152116.riffle.ui.components.RiffleTopBar
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.amit152116.riffle.data.db.BrowseEntityType
 import com.amit152116.riffle.data.db.PlaybackSource
+import com.amit152116.riffle.data.model.AlbumSongSortOrder
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
+import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.ColorUtils
@@ -52,6 +63,7 @@ import com.amit152116.riffle.ui.library.LibraryViewModel
 import com.amit152116.riffle.ui.components.AsyncArtwork
 import com.amit152116.riffle.ui.components.rememberArtworkColors
 import com.amit152116.riffle.ui.components.TrackRow
+import com.amit152116.riffle.ui.library.SortOrderSheet
 import com.amit152116.riffle.ui.player.PlayerViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -73,6 +85,17 @@ fun AlbumDetailScreen(
     val artistName = albumTracks.firstOrNull()?.artist ?: "Unknown Artist"
     val albumArtworkUri = albumTracks.firstOrNull { it.artworkUri != null }?.artworkUri
     val artistArtworkUri = albumTracks.firstOrNull { it.artworkUri != null }?.artworkUri
+    
+    val albumSongSortOrder by libraryViewModel.albumSongSortOrder.collectAsState()
+    val sortedAlbumTracks = remember(albumTracks, albumSongSortOrder) {
+        val list = albumTracks.toList()
+        when (albumSongSortOrder) {
+            AlbumSongSortOrder.TITLE_A_Z -> list.sortedBy { it.title.lowercase() }
+            AlbumSongSortOrder.TITLE_Z_A -> list.sortedByDescending { it.title.lowercase() }
+            AlbumSongSortOrder.DURATION_DESC -> list.sortedByDescending { it.durationMs }
+        }
+    }
+    
     val artworkColors = rememberArtworkColors(albumArtworkUri)
     val artworkBgOpaque = artworkColors.backgroundColor or 0xFF000000.toInt()
     val artworkBackgroundIsNearBlack =
@@ -99,13 +122,63 @@ fun AlbumDetailScreen(
     val artworkOutlineColor = artworkActionColor
     val detailListState = rememberLazyListState()
 
+    var menuExpanded by remember { mutableStateOf(false) }
+    var showSortOrderSheet by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
     Scaffold(
         topBar = {
             RiffleTopBar(
                 onBack = onBack,
                 actions = {
-                    IconButton(onClick = { /* TODO */ }) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = "More")
+                    IconButton(onClick = {
+                        Toast.makeText(context, "Tag editor coming soon", Toast.LENGTH_SHORT).show()
+                    }) {
+                        Icon(Icons.Filled.Edit, contentDescription = "Tag editor")
+                    }
+                    IconButton(onClick = { showSortOrderSheet = true }) {
+                        Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort order")
+                    }
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = "More options")
+                        }
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Play next") },
+                                onClick = {
+                                    if (sortedAlbumTracks.isNotEmpty()) {
+                                        playerViewModel.playNext(sortedAlbumTracks.first()) // Assuming playNext takes a list in a real app, here we just do first or loop
+                                        sortedAlbumTracks.forEach { playerViewModel.addToQueue(it) } // Simplified
+                                    }
+                                    menuExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Add to playing queue") },
+                                onClick = {
+                                    sortedAlbumTracks.forEach { playerViewModel.addToQueue(it) }
+                                    menuExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Add to playlist") },
+                                onClick = {
+                                    Toast.makeText(context, "Add to playlist coming soon", Toast.LENGTH_SHORT).show()
+                                    menuExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Delete from device") },
+                                onClick = {
+                                    Toast.makeText(context, "Delete from device coming soon", Toast.LENGTH_SHORT).show()
+                                    menuExpanded = false
+                                }
+                            )
+                        }
                     }
                 }
             )
@@ -229,12 +302,12 @@ fun AlbumDetailScreen(
             }
 
             // Numbered Track List
-            itemsIndexed(albumTracks) { index, track ->
+            itemsIndexed(sortedAlbumTracks) { index, track ->
                 TrackRow(
                     track = track,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { playerViewModel.playTrack(track, albumTracks, PlaybackSource.ALBUM) }
+                        .clickable { playerViewModel.playTrack(track, sortedAlbumTracks, PlaybackSource.ALBUM) }
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     leadingText = "${index + 1}",
                     onPlayNext = { playerViewModel.playNext(track) },
@@ -244,5 +317,15 @@ fun AlbumDetailScreen(
                 )
             }
         }
+    }
+
+    if (showSortOrderSheet) {
+        SortOrderSheet(
+            currentSortOrder = libraryViewModel.albumSongSortOrder.collectAsState().value,
+            onSortOrderSelected = libraryViewModel::setAlbumSongSortOrder,
+            entries = AlbumSongSortOrder.entries,
+            labelSelector = { it.label },
+            onDismiss = { showSortOrderSheet = false }
+        )
     }
 }

@@ -1,9 +1,12 @@
 package com.amit152116.riffle.ui.library
 
 import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,76 +17,86 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
-import com.amit152116.riffle.ui.player.PlayerViewModel
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QueueMusic
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
-import com.amit152116.riffle.R
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.amit152116.riffle.data.model.AlbumSortOrder
+import com.amit152116.riffle.data.model.ArtistSortOrder
+import com.amit152116.riffle.data.model.FolderSortOrder
 import com.amit152116.riffle.data.model.GridStyle
-import androidx.compose.runtime.collectAsState
-import androidx.compose.material3.CircularProgressIndicator
+import com.amit152116.riffle.data.model.SongSortOrder
 import com.amit152116.riffle.ui.components.AddToPlaylistSheet
-import com.amit152116.riffle.ui.components.GridStyleTile
-import com.amit152116.riffle.ui.components.TrackRow
-import com.amit152116.riffle.ui.components.RiffleTopBar
 import com.amit152116.riffle.ui.components.AlphabetScrollbar
 import com.amit152116.riffle.ui.components.AsyncArtwork
+import com.amit152116.riffle.ui.components.GridStyleTile
+import com.amit152116.riffle.ui.components.RiffleTopBar
+import com.amit152116.riffle.ui.components.TrackRow
+import com.amit152116.riffle.ui.player.PlayerViewModel
+import com.amit152116.riffle.data.AppContainer
 import com.amit152116.riffle.ui.playlist.PlaylistViewModel
-import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.lazy.grid.items as gridItems
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,31 +105,40 @@ fun LibraryCatalogScreen(
     playerViewModel: PlayerViewModel,
     onNavigateToArtist: (String) -> Unit = {},
     onNavigateToAlbum: (String) -> Unit = {},
+    onNavigateToFolder: (String) -> Unit = {},
     onNavigateToSearch: () -> Unit = {},
-    onOpenPlaylist: (Long) -> Unit = {}
+    onOpenPlaylist: (Long) -> Unit = {},
+    onNavigateToList: (String) -> Unit = {},
+    onNavigateToSettings: () -> Unit = {}
 ) {
     var selectedTabIndex by remember { mutableStateOf(0) } // Default to Songs
     var selectedTrackIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var selectionMenuExpanded by remember { mutableStateOf(false) }
+    var catalogMenuExpanded by remember { mutableStateOf(false) }
     var showBulkAddToPlaylist by remember { mutableStateOf(false) }
-    val playlistViewModel: PlaylistViewModel = viewModel()
+    var showGridStyleSheet by remember { mutableStateOf(false) }
+    var showGridSizeSheet by remember { mutableStateOf(false) }
+    var showSortOrderSheet by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val playlistViewModel: PlaylistViewModel = viewModel(
+        factory = AppContainer.getInstance(context).playlistViewModelFactory
+    )
     val songs by libraryViewModel.songs.collectAsState()
     val isScanningLibrary by libraryViewModel.isScanning.collectAsState()
     val lastScanResult by libraryViewModel.lastScanResult.collectAsState()
-    val context = LocalContext.current
 
     LaunchedEffect(lastScanResult) {
         lastScanResult?.let { result ->
             Toast.makeText(
                 context,
                 "Scanned ${result.scanned} tracks" +
-                    if (result.failed > 0) ", ${result.failed} failed" else "",
+                        if (result.failed > 0) ", ${result.failed} failed" else "",
                 Toast.LENGTH_SHORT
             ).show()
         }
     }
     val allSongsSelected = songs.isNotEmpty() && selectedTrackIds.size == songs.size
-    val tabs = listOf("Songs", "Artists", "Albums", "Genres", "Clusters", "Playlists")
+    val tabs = listOf("Folders", "Artists", "Albums", "Songs", "Genres", "Clusters", "Playlists")
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val pagerScope = rememberCoroutineScope()
 
@@ -155,11 +177,17 @@ fun LibraryCatalogScreen(
                             playerViewModel.addToQueue(songs.filter { it.id in selectedTrackIds })
                             selectedTrackIds = emptySet()
                         }) {
-                            Icon(Icons.Filled.QueueMusic, contentDescription = "Add selected to queue")
+                            Icon(
+                                Icons.Filled.QueueMusic,
+                                contentDescription = "Add selected to queue"
+                            )
                         }
                         Box {
                             IconButton(onClick = { selectionMenuExpanded = true }) {
-                                Icon(Icons.Filled.MoreVert, contentDescription = "More selection options")
+                                Icon(
+                                    Icons.Filled.MoreVert,
+                                    contentDescription = "More selection options"
+                                )
                             }
                             DropdownMenu(
                                 expanded = selectionMenuExpanded,
@@ -167,9 +195,15 @@ fun LibraryCatalogScreen(
                             ) {
                                 DropdownMenuItem(
                                     text = { Text("Share selected songs") },
-                                    leadingIcon = { Icon(Icons.Filled.Share, contentDescription = null) },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Filled.Share,
+                                            contentDescription = null
+                                        )
+                                    },
                                     onClick = {
-                                        val selectedTracks = songs.filter { it.id in selectedTrackIds }
+                                        val selectedTracks =
+                                            songs.filter { it.id in selectedTrackIds }
                                         if (selectedTracks.isNotEmpty()) {
                                             context.startActivity(
                                                 Intent.createChooser(
@@ -196,7 +230,12 @@ fun LibraryCatalogScreen(
                                     text = {
                                         Text(if (allSongsSelected) "Deselect all songs" else "Select all songs")
                                     },
-                                    leadingIcon = { Icon(Icons.Filled.SelectAll, contentDescription = null) },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Filled.SelectAll,
+                                            contentDescription = null
+                                        )
+                                    },
                                     onClick = {
                                         if (allSongsSelected) {
                                             selectedTrackIds = emptySet()
@@ -232,18 +271,87 @@ fun LibraryCatalogScreen(
                 RiffleTopBar(
                     title = "Library",
                     actions = {
-                        IconButton(
-                            onClick = { libraryViewModel.scanLibrary() },
-                            enabled = !isScanningLibrary
-                        ) {
-                            if (isScanningLibrary) {
-                                CircularProgressIndicator(modifier = Modifier.size(20.dp))
-                            } else {
-                                Icon(Icons.Filled.Sync, contentDescription = "Scan library")
-                            }
-                        }
                         IconButton(onClick = onNavigateToSearch) {
                             Icon(Icons.Filled.Search, contentDescription = "Search")
+                        }
+                        Box {
+                            IconButton(onClick = { catalogMenuExpanded = true }) {
+                                Icon(Icons.Filled.MoreVert, contentDescription = "More options")
+                            }
+                            DropdownMenu(
+                                expanded = catalogMenuExpanded,
+                                onDismissRequest = { catalogMenuExpanded = false }
+                            ) {
+                                if (selectedTabIndex in 0..3) {
+                                    DropdownMenuItem(
+                                        text = { Text("Sort order") },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.AutoMirrored.Filled.Sort,
+                                                contentDescription = null
+                                            )
+                                        },
+                                        onClick = {
+                                            showSortOrderSheet = true
+                                            catalogMenuExpanded = false
+                                        }
+                                    )
+                                }
+                                if (selectedTabIndex in 0..2) {
+                                    DropdownMenuItem(
+                                        text = { Text("Grid size") },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Filled.GridView,
+                                                contentDescription = null
+                                            )
+                                        },
+                                        onClick = {
+                                            showGridSizeSheet = true
+                                            catalogMenuExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Grid style") },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Filled.GridView,
+                                                contentDescription = null
+                                            )
+                                        },
+                                        onClick = {
+                                            showGridStyleSheet = true
+                                            catalogMenuExpanded = false
+                                        }
+                                    )
+                                }
+                                DropdownMenuItem(
+                                    text = { Text(if (isScanningLibrary) "Scanning..." else "Rescan library") },
+                                    leadingIcon = {
+                                        if (isScanningLibrary) {
+                                            CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                                        } else {
+                                            Icon(Icons.Filled.Sync, contentDescription = null)
+                                        }
+                                    },
+                                    onClick = {
+                                        if (!isScanningLibrary) {
+                                            libraryViewModel.scanLibrary()
+                                        }
+                                        catalogMenuExpanded = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Settings") },
+                                    leadingIcon = {
+                                        Icon(Icons.Filled.Settings, contentDescription = null)
+                                    },
+                                    onClick = {
+                                        onNavigateToSettings()
+                                        catalogMenuExpanded = false
+                                    }
+                                )
+                            }
                         }
                     }
                 )
@@ -282,17 +390,6 @@ fun LibraryCatalogScreen(
                         )
                     }
                 }
-
-                when (selectedTabIndex) {
-                    1 -> GridStyleMenuButton(
-                        currentStyle = libraryViewModel.artistGridStyle.collectAsState().value,
-                        onStyleSelected = libraryViewModel::setArtistGridStyle
-                    )
-                    2 -> GridStyleMenuButton(
-                        currentStyle = libraryViewModel.albumGridStyle.collectAsState().value,
-                        onStyleSelected = libraryViewModel::setAlbumGridStyle
-                    )
-                }
             }
 
             HorizontalPager(
@@ -300,7 +397,22 @@ fun LibraryCatalogScreen(
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 when (page) {
-                    0 -> SongsContent(
+                    0 -> FoldersContent(
+                        viewModel = libraryViewModel,
+                        onNavigateToFolder = onNavigateToFolder
+                    )
+
+                    1 -> ArtistsContent(
+                        viewModel = libraryViewModel,
+                        onNavigateToArtist = onNavigateToArtist
+                    )
+
+                    2 -> AlbumsContent(
+                        viewModel = libraryViewModel,
+                        onNavigateToAlbum = onNavigateToAlbum
+                    )
+
+                    3 -> SongsContent(
                         viewModel = libraryViewModel,
                         playerViewModel = playerViewModel,
                         onNavigateToArtist = onNavigateToArtist,
@@ -314,11 +426,14 @@ fun LibraryCatalogScreen(
                             }
                         }
                     )
-                    1 -> ArtistsContent(viewModel = libraryViewModel, onNavigateToArtist = onNavigateToArtist)
-                    2 -> AlbumsContent(viewModel = libraryViewModel, onNavigateToAlbum = onNavigateToAlbum)
-                    3 -> GenresContent(viewModel = libraryViewModel)
-                    4 -> ClustersContent()
-                    5 -> PlaylistsContent(viewModel = playlistViewModel, onOpenPlaylist = onOpenPlaylist)
+
+                    4 -> GenresContent(viewModel = libraryViewModel)
+                    5 -> ClustersContent()
+                    6 -> PlaylistsContent(
+                        viewModel = playlistViewModel,
+                        onOpenPlaylist = onOpenPlaylist,
+                        onNavigateToList = onNavigateToList
+                    )
                 }
             }
         }
@@ -334,26 +449,235 @@ fun LibraryCatalogScreen(
             }
         )
     }
+
+    if (showSortOrderSheet) {
+        when (selectedTabIndex) {
+            0 -> SortOrderSheet(
+                currentSortOrder = libraryViewModel.folderSortOrder.collectAsState().value,
+                onSortOrderSelected = libraryViewModel::setFolderSortOrder,
+                entries = FolderSortOrder.entries,
+                labelSelector = { it.label },
+                onDismiss = { showSortOrderSheet = false }
+            )
+            1 -> SortOrderSheet(
+                currentSortOrder = libraryViewModel.artistSortOrder.collectAsState().value,
+                onSortOrderSelected = libraryViewModel::setArtistSortOrder,
+                entries = ArtistSortOrder.entries,
+                labelSelector = { it.label },
+                onDismiss = { showSortOrderSheet = false }
+            )
+            2 -> SortOrderSheet(
+                currentSortOrder = libraryViewModel.albumSortOrder.collectAsState().value,
+                onSortOrderSelected = libraryViewModel::setAlbumSortOrder,
+                entries = AlbumSortOrder.entries,
+                labelSelector = { it.label },
+                onDismiss = { showSortOrderSheet = false }
+            )
+            3 -> SortOrderSheet(
+                currentSortOrder = libraryViewModel.songSortOrder.collectAsState().value,
+                onSortOrderSelected = libraryViewModel::setSongSortOrder,
+                entries = SongSortOrder.entries,
+                labelSelector = { it.label },
+                onDismiss = { showSortOrderSheet = false }
+            )
+        }
+    }
+
+    if (showGridStyleSheet) {
+        val currentStyle = when (selectedTabIndex) {
+            0 -> libraryViewModel.folderGridStyle.collectAsState().value
+            1 -> libraryViewModel.artistGridStyle.collectAsState().value
+            else -> libraryViewModel.albumGridStyle.collectAsState().value
+        }
+        val onStyleSelected: (GridStyle) -> Unit = when (selectedTabIndex) {
+            0 -> libraryViewModel::setFolderGridStyle
+            1 -> libraryViewModel::setArtistGridStyle
+            else -> libraryViewModel::setAlbumGridStyle
+        }
+        GridStyleSheet(
+            currentStyle = currentStyle,
+            onStyleSelected = onStyleSelected,
+            onDismiss = { showGridStyleSheet = false }
+        )
+    }
+
+    if (showGridSizeSheet) {
+        val currentSize = when (selectedTabIndex) {
+            0 -> libraryViewModel.folderGridSize.collectAsState().value
+            1 -> libraryViewModel.artistGridSize.collectAsState().value
+            else -> libraryViewModel.albumGridSize.collectAsState().value
+        }
+        val onSizeSelected: (Int) -> Unit = when (selectedTabIndex) {
+            0 -> libraryViewModel::setFolderGridSize
+            1 -> libraryViewModel::setArtistGridSize
+            else -> libraryViewModel::setAlbumGridSize
+        }
+        GridSizeSheet(
+            currentSize = currentSize,
+            onSizeSelected = onSizeSelected,
+            onDismiss = { showGridSizeSheet = false }
+        )
+    }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GridStyleMenuButton(currentStyle: GridStyle, onStyleSelected: (GridStyle) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
+fun GridStyleSheet(
+    currentStyle: GridStyle,
+    onStyleSelected: (GridStyle) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    Box {
-        IconButton(onClick = { expanded = true }) {
-            Icon(Icons.Filled.GridView, contentDescription = "Change grid style")
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            GridStyle.entries.forEach { style ->
-                DropdownMenuItem(
-                    text = { Text(style.label) },
-                    onClick = {
-                        onStyleSelected(style)
-                        expanded = false
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .navigationBarsPadding()
+        ) {
+            Text(
+                text = "Grid style",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
+                items(GridStyle.entries) { style ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onStyleSelected(style); onDismiss() }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = (style == currentStyle),
+                            onClick = null
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(
+                            text = style.label,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
                     }
-                )
+                }
             }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GridSizeSheet(
+    currentSize: Int,
+    onSizeSelected: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .navigationBarsPadding()
+        ) {
+            Text(
+                text = "Grid size",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
+                items(5) { index ->
+                    val size = index + 1
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSizeSelected(size); onDismiss() }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = (size == currentSize),
+                            onClick = null
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(
+                            text = size.toString(),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun <T> SortOrderSheet(
+    currentSortOrder: T,
+    onSortOrderSelected: (T) -> Unit,
+    entries: List<T>,
+    labelSelector: (T) -> String,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .navigationBarsPadding()
+        ) {
+            Text(
+                text = "Sort order",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
+                items(entries) { order ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSortOrderSelected(order); onDismiss() }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = (order == currentSortOrder),
+                            onClick = null
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(
+                            text = labelSelector(order),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
@@ -474,38 +798,64 @@ fun SongsContent(
 fun ArtistsContent(viewModel: LibraryViewModel, onNavigateToArtist: (String) -> Unit = {}) {
     val artists by viewModel.artists.collectAsState()
     val gridStyle by viewModel.artistGridStyle.collectAsState()
+    val gridSize by viewModel.artistGridSize.collectAsState()
     val gridState = rememberLazyGridState()
+    val listState = rememberLazyListState()
 
     Box(modifier = Modifier.fillMaxSize()) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            state = gridState,
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 80.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(end = 12.dp)
-        ) {
-            gridItems(artists) { artist ->
-                GridStyleTile(
-                    title = artist.name,
-                    subtitle = if (gridStyle == GridStyle.COLORED_CARD) null else "${artist.trackCount} tracks",
-                    artworkUri = artist.artworkUri,
-                    style = gridStyle,
-                    onClick = { onNavigateToArtist(artist.name) }
-                )
+        if (gridSize == 1) {
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(bottom = 80.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(end = 12.dp)
+            ) {
+                items(artists) { artist ->
+                    ListItemRow(
+                        title = artist.name,
+                        subtitle = "${artist.trackCount} tracks",
+                        artworkUri = artist.artworkUri,
+                        onClick = { onNavigateToArtist(artist.name) }
+                    )
+                }
+            }
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(gridSize),
+                state = gridState,
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 80.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(end = 12.dp)
+            ) {
+                gridItems(artists) { artist ->
+                    GridStyleTile(
+                        title = artist.name,
+                        subtitle = if (gridStyle == GridStyle.COLORED_CARD) null else "${artist.trackCount} tracks",
+                        artworkUri = artist.artworkUri,
+                        style = gridStyle,
+                        onClick = { onNavigateToArtist(artist.name) }
+                    )
+                }
             }
         }
         AlphabetScrollbar(
             labels = artists.map { it.name },
-            modifier = Modifier.align(Alignment.CenterEnd).padding(start = 6.dp, end = 6.dp),
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(start = 6.dp, end = 6.dp),
             onLetterSelected = { letter ->
                 val targetIndex = artists.indexOfFirst { item ->
                     val first = item.name.firstOrNull()?.uppercaseChar() ?: '#'
                     if (letter == '#') first !in 'A'..'Z' else first == letter
                 }
-                if (targetIndex >= 0) gridState.requestScrollToItem(targetIndex)
+                if (targetIndex >= 0) {
+                    if (gridSize == 1) listState.requestScrollToItem(targetIndex)
+                    else gridState.requestScrollToItem(targetIndex)
+                }
             }
         )
     }
@@ -515,38 +865,64 @@ fun ArtistsContent(viewModel: LibraryViewModel, onNavigateToArtist: (String) -> 
 fun AlbumsContent(viewModel: LibraryViewModel, onNavigateToAlbum: (String) -> Unit = {}) {
     val albums by viewModel.albums.collectAsState()
     val gridStyle by viewModel.albumGridStyle.collectAsState()
+    val gridSize by viewModel.albumGridSize.collectAsState()
     val gridState = rememberLazyGridState()
+    val listState = rememberLazyListState()
 
     Box(modifier = Modifier.fillMaxSize()) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            state = gridState,
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 80.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(end = 12.dp)
-        ) {
-            gridItems(albums) { album ->
-                GridStyleTile(
-                    title = album.name,
-                    subtitle = album.artist,
-                    artworkUri = album.artworkUri,
-                    style = gridStyle,
-                    onClick = { onNavigateToAlbum(album.name) }
-                )
+        if (gridSize == 1) {
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(bottom = 80.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(end = 12.dp)
+            ) {
+                items(albums) { album ->
+                    ListItemRow(
+                        title = album.name,
+                        subtitle = album.artist,
+                        artworkUri = album.artworkUri,
+                        onClick = { onNavigateToAlbum(album.name) }
+                    )
+                }
+            }
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(gridSize),
+                state = gridState,
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 80.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(end = 12.dp)
+            ) {
+                gridItems(albums) { album ->
+                    GridStyleTile(
+                        title = album.name,
+                        subtitle = album.artist,
+                        artworkUri = album.artworkUri,
+                        style = gridStyle,
+                        onClick = { onNavigateToAlbum(album.name) }
+                    )
+                }
             }
         }
         AlphabetScrollbar(
             labels = albums.map { it.name },
-            modifier = Modifier.align(Alignment.CenterEnd).padding(start = 6.dp, end = 6.dp),
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(start = 6.dp, end = 6.dp),
             onLetterSelected = { letter ->
                 val targetIndex = albums.indexOfFirst { item ->
                     val first = item.name.firstOrNull()?.uppercaseChar() ?: '#'
                     if (letter == '#') first !in 'A'..'Z' else first == letter
                 }
-                if (targetIndex >= 0) gridState.requestScrollToItem(targetIndex)
+                if (targetIndex >= 0) {
+                    if (gridSize == 1) listState.requestScrollToItem(targetIndex)
+                    else gridState.requestScrollToItem(targetIndex)
+                }
             }
         )
     }
@@ -654,18 +1030,48 @@ fun ClustersContent() {
 }
 
 @Composable
-fun PlaylistsContent(viewModel: PlaylistViewModel, onOpenPlaylist: (Long) -> Unit) {
+fun PlaylistsContent(
+    viewModel: PlaylistViewModel, 
+    onOpenPlaylist: (Long) -> Unit,
+    onNavigateToList: (String) -> Unit = {}
+) {
     val playlists by viewModel.playlists.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        if (playlists.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No playlists yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        LazyColumn(contentPadding = PaddingValues(bottom = 80.dp)) {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onNavigateToList("favorites") }
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Filled.Favorite,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(40.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        text = "Favorites",
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
-        } else {
-            LazyColumn(contentPadding = PaddingValues(bottom = 80.dp)) {
+
+            if (playlists.isEmpty()) {
+                item {
+                    Box(modifier = Modifier.fillMaxWidth().padding(top = 32.dp), contentAlignment = Alignment.Center) {
+                        Text("No custom playlists yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            } else {
                 items(playlists) { playlist ->
                     Row(
                         modifier = Modifier
@@ -728,4 +1134,183 @@ fun PlaylistsContent(viewModel: PlaylistViewModel, onOpenPlaylist: (Long) -> Uni
     }
 }
 
+@Composable
+fun FoldersContent(viewModel: LibraryViewModel, onNavigateToFolder: (String) -> Unit) {
+    val songs by viewModel.songs.collectAsState()
+    val gridStyle by viewModel.folderGridStyle.collectAsState()
+    val gridSize by viewModel.folderGridSize.collectAsState()
+    val sortOrder by viewModel.folderSortOrder.collectAsState()
+    val listState = rememberLazyListState()
+    val gridState = rememberLazyGridState()
+    
+    val folders = remember(songs, sortOrder) {
+        songs.groupBy { it.folderPath }
+            .map { (path, tracks) ->
+                val displayPath = if (path.isEmpty()) "Unknown Folder" else path.trimEnd('/')
+                val folderName =
+                    if (displayPath == "Unknown Folder") displayPath else displayPath.substringAfterLast(
+                        '/'
+                    )
+                FolderItem(
+                    name = folderName,
+                    trackCount = "${tracks.size} tracks",
+                    trackCountInt = tracks.size,
+                    path = path,
+                    fullDisplayPath = displayPath
+                )
+            }
+            .let { list ->
+                when (sortOrder) {
+                    FolderSortOrder.FOLDER_A_Z -> list.sortedBy { it.name.lowercase() }
+                    FolderSortOrder.FOLDER_Z_A -> list.sortedByDescending { it.name.lowercase() }
+                    FolderSortOrder.NUM_SONGS_DESC -> list.sortedByDescending { it.trackCountInt }
+                }
+            }
+    }
+
+    if (folders.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No folders found", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    } else {
+        if (gridSize == 1) {
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(bottom = 80.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(folders) { folder ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onNavigateToFolder(folder.path) }
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Filled.Folder,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(40.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = folder.name,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Clip,
+                                    modifier = Modifier
+                                        .weight(1f, fill = false)
+                                        .basicMarquee(
+                                            iterations = Int.MAX_VALUE,
+                                            initialDelayMillis = 1000,
+                                            repeatDelayMillis = 1500
+                                        )
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = folder.trackCount,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1
+                                )
+                            }
+                            if (folder.fullDisplayPath != folder.name) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                val parentPath = folder.fullDisplayPath.substringBeforeLast('/', missingDelimiterValue = "").let { 
+                                    if (it.isEmpty()) "/" else it 
+                                }
+                                Text(
+                                    text = parentPath,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Clip,
+                                    modifier = Modifier.basicMarquee(
+                                        iterations = Int.MAX_VALUE,
+                                        initialDelayMillis = 1000,
+                                        repeatDelayMillis = 1500
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(gridSize),
+                state = gridState,
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 80.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                gridItems(folders) { folder ->
+                    GridStyleTile(
+                        title = folder.name,
+                        subtitle = folder.trackCount,
+                        artworkUri = null,
+                        style = gridStyle,
+                        onClick = { onNavigateToFolder(folder.path) },
+                        fallbackIcon = Icons.Filled.Folder
+                    )
+                }
+            }
+        }
+    }
+}
+data class FolderItem(
+    val name: String,
+    val trackCount: String,
+    val trackCountInt: Int,
+    val path: String,
+    val fullDisplayPath: String
+)
+
 data class GenreItem(val name: String, val trackCount: String)
+
+@Composable
+fun ListItemRow(
+    title: String,
+    subtitle: String?,
+    artworkUri: Uri?,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AsyncArtwork(
+            uri = artworkUri,
+            modifier = Modifier.size(48.dp),
+            shape = RoundedCornerShape(8.dp)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+

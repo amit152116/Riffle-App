@@ -2,37 +2,37 @@ package com.amit152116.riffle.ui.components
 
 import android.content.Intent
 import android.widget.Toast
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.amit152116.riffle.data.AppContainer
 import com.amit152116.riffle.data.model.TrackUiModel
 import com.amit152116.riffle.ui.playlist.PlaylistViewModel
 
@@ -57,7 +57,9 @@ fun TrackRow(
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
     var showDetailSheet by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val playlistViewModel: PlaylistViewModel = viewModel()
+    val playlistViewModel: PlaylistViewModel = viewModel(
+        factory = AppContainer.getInstance(context).playlistViewModelFactory
+    )
 
     fun showUnavailable(message: String) {
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
@@ -150,6 +152,7 @@ fun TrackRow(
                         onGoToArtist()
                         menuExpanded = false
                     }
+                    SongMenuItem("Tag Editor") { showUnavailable("Tag Editor support coming soon") }
                     SongMenuItem("Share") {
                         context.startActivity(
                             Intent.createChooser(

@@ -25,7 +25,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.amit152116.riffle.data.AppContainer
 import com.amit152116.riffle.data.db.PlaybackSource
 import com.amit152116.riffle.ui.components.RiffleTopBar
 import com.amit152116.riffle.ui.components.TrackRow
@@ -34,10 +37,12 @@ import com.amit152116.riffle.ui.player.PlayerViewModel
 @Composable
 fun PlaylistDetailScreen(
     playlistId: Long,
-    viewModel: PlaylistViewModel,
     playerViewModel: PlayerViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
 ) {
+
+    val viewModel: PlaylistViewModel =
+        viewModel(factory = AppContainer.getInstance(LocalContext.current).playlistViewModelFactory)
     val playlists by viewModel.playlists.collectAsState()
     val playlistName = playlists.find { it.id == playlistId }?.name ?: "Playlist"
     val tracks by remember(playlistId) { viewModel.tracksFor(playlistId) }.collectAsState(initial = emptyList())
@@ -64,7 +69,10 @@ fun PlaylistDetailScreen(
                     .padding(paddingValues),
                 contentAlignment = Alignment.Center
             ) {
-                Text("No tracks in this playlist", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "No tracks in this playlist",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         } else {
             LazyColumn(
@@ -77,7 +85,13 @@ fun PlaylistDetailScreen(
                         track = item.track,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { playerViewModel.playTrack(item.track, tracks.map { it.track }, PlaybackSource.PLAYLIST) }
+                            .clickable {
+                                playerViewModel.playTrack(
+                                    item.track,
+                                    tracks.map { it.track },
+                                    PlaybackSource.PLAYLIST
+                                )
+                            }
                             .padding(horizontal = 20.dp, vertical = 8.dp),
                         onPlayNext = { playerViewModel.playNext(item.track) },
                         onAddToQueue = { playerViewModel.addToQueue(item.track) },

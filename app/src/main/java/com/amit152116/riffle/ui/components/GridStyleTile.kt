@@ -43,7 +43,8 @@ fun GridStyleTile(
     artworkUri: Uri?,
     style: GridStyle,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    fallbackIcon: Any? = null
 ) {
     when (style) {
         GridStyle.GRID -> Column(
@@ -57,7 +58,8 @@ fun GridStyleTile(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(16.dp),
+                fallbackIcon = fallbackIcon
             )
             TileText(title, subtitle, Modifier.padding(top = 8.dp))
         }
@@ -73,7 +75,8 @@ fun GridStyleTile(
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(1.08f),
-                    shape = RoundedCornerShape(0.dp)
+                    shape = RoundedCornerShape(0.dp),
+                    fallbackIcon = fallbackIcon
                 )
                 TileText(
                     title,
@@ -98,7 +101,8 @@ fun GridStyleTile(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f),
-                shape = CircleShape
+                shape = CircleShape,
+                fallbackIcon = fallbackIcon
             )
             TileText(title, subtitle, Modifier.padding(top = 8.dp), centered = true)
         }
@@ -113,7 +117,8 @@ fun GridStyleTile(
             AsyncArtwork(
                 uri = artworkUri,
                 modifier = Modifier.fillMaxSize(),
-                shape = RoundedCornerShape(0.dp)
+                shape = RoundedCornerShape(0.dp),
+                fallbackIcon = fallbackIcon
             )
             ScrimOverlay()
             OverlayTitle(title, modifier = Modifier.align(Alignment.BottomCenter))
@@ -128,7 +133,8 @@ fun GridStyleTile(
                 AsyncArtwork(
                     uri = artworkUri,
                     modifier = Modifier.fillMaxSize(),
-                    shape = RoundedCornerShape(0.dp)
+                    shape = RoundedCornerShape(0.dp),
+                    fallbackIcon = fallbackIcon
                 )
                 ScrimOverlay()
                 OverlayTitle(title, modifier = Modifier.align(Alignment.BottomCenter))

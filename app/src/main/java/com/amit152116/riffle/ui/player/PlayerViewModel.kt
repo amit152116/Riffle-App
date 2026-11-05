@@ -1,17 +1,19 @@
 package com.amit152116.riffle.ui.player
 
-import android.app.Application
 import android.content.ComponentName
+import android.content.Context
 import android.os.Bundle
-import androidx.core.graphics.drawable.toBitmap
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.AndroidViewModel
+import androidx.core.graphics.drawable.toBitmap
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import coil.imageLoader
+import coil.request.ImageRequest
 import com.amit152116.riffle.data.AppContainer
 import com.amit152116.riffle.data.color.ArtworkColorExtractor
 import com.amit152116.riffle.data.db.PLAYBACK_SOURCE_EXTRA_KEY
@@ -20,14 +22,13 @@ import com.amit152116.riffle.data.db.QueueAction
 import com.amit152116.riffle.data.db.playback.entities.QueueEvent
 import com.amit152116.riffle.data.model.TrackUiModel
 import com.amit152116.riffle.data.model.toTrackUiModel
+import com.amit152116.riffle.data.prefs.PreferencesManager
 import com.amit152116.riffle.log.RiffleLog
 import com.amit152116.riffle.service.PlaybackService
 import com.google.common.util.concurrent.ListenableFuture
-import coil.imageLoader
-import coil.request.ImageRequest
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
@@ -51,8 +52,12 @@ private fun TrackUiModel.toMediaItem(source: PlaybackSource = PlaybackSource.MAN
 
 private const val SAVE_STATE_INTERVAL_MS = 3000L
 
-class PlayerViewModel(application: Application) : AndroidViewModel(application) {
+class PlayerViewModel(
+    private val applicationContext: Context,
+    private val container: AppContainer
+) : ViewModel() {
     private var controllerFuture: ListenableFuture<MediaController>? = null
+    private val prefs: PreferencesManager = container.preferences
     private var player: Player? = null
 
     private var pendingPlayRequest: Triple<TrackUiModel, List<TrackUiModel>, PlaybackSource>? = null
@@ -60,11 +65,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _currentPlaylist = MutableStateFlow<List<TrackUiModel>>(emptyList())
     val currentPlaylist = _currentPlaylist.asStateFlow()
-    
-    private val container = AppContainer.getInstance(application)
+
     private val log = RiffleLog(this)
-    private val prefs = container.preferences
-    
+
     private val _currentTrack = MutableStateFlow<TrackUiModel?>(null)
     val currentTrack = _currentTrack.asStateFlow()
 
@@ -75,25 +78,22 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _currentColors = MutableStateFlow(ArtworkColorExtractor.extract(null))
     val currentColors = _currentColors.asStateFlow()
     private var colorExtractionJob: Job? = null
-    
+
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying = _isPlaying.asStateFlow()
 
     private val _isShuffleEnabled = MutableStateFlow(false)
     val isShuffleEnabled = _isShuffleEnabled.asStateFlow()
 
-    private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_ALL)
-    val repeatMode = _repeatMode.asStateFlow()
-    
     private val _isCrossfadeEnabled = MutableStateFlow(prefs.crossfadeEnabled)
     val isCrossfadeEnabled = _isCrossfadeEnabled.asStateFlow()
 
     private val _crossfadeSeconds = MutableStateFlow(prefs.crossfadeSeconds)
     val crossfadeSeconds = _crossfadeSeconds.asStateFlow()
-    
+
     private val _currentPosition = MutableStateFlow(0L)
     val currentPosition = _currentPosition.asStateFlow()
-    
+
     private val _duration = MutableStateFlow(0L)
     val duration = _duration.asStateFlow()
 
@@ -104,16 +104,19 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val sleepTimerEndOfTrack = _sleepTimerEndOfTrack.asStateFlow()
 
     init {
-        val sessionToken = SessionToken(application, ComponentName(application, PlaybackService::class.java))
-        controllerFuture = MediaController.Builder(application, sessionToken).buildAsync()
+        val sessionToken = SessionToken(
+            applicationContext,
+            ComponentName(applicationContext, PlaybackService::class.java)
+        )
+        controllerFuture = MediaController.Builder(applicationContext, sessionToken).buildAsync()
         controllerFuture?.addListener(
             {
                 player = controllerFuture?.get()
                 setupPlayer()
             },
-            ContextCompat.getMainExecutor(application)
+            ContextCompat.getMainExecutor(applicationContext)
         )
-        
+
         viewModelScope.launch {
             var lastSaveElapsedMs = 0L
             while (isActive) {
@@ -168,7 +171,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun setupPlayer() {
         val p = player ?: return
-        p.repeatMode = _repeatMode.value
+        p.repeatMode = Player.REPEAT_MODE_ALL
         p.shuffleModeEnabled = _isShuffleEnabled.value
 
         p.addListener(object : Player.Listener {
@@ -178,10 +181,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
                 _isShuffleEnabled.value = shuffleModeEnabled
-            }
-
-            override fun onRepeatModeChanged(repeatMode: Int) {
-                _repeatMode.value = repeatMode
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -203,7 +202,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun playTrack(track: TrackUiModel, playlist: List<TrackUiModel> = listOf(track), source: PlaybackSource = PlaybackSource.MANUAL) {
+    fun playTrack(
+        track: TrackUiModel,
+        playlist: List<TrackUiModel> = listOf(track),
+        source: PlaybackSource = PlaybackSource.MANUAL
+    ) {
         val p = player
         if (p == null) {
             pendingPlayRequest = Triple(track, playlist, source)
@@ -234,7 +237,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         favoriteRefreshJob?.cancel()
         favoriteRefreshJob = viewModelScope.launch {
             val roomId = container.resolveTrackId(track.id)
-            _isFavorite.value = roomId != null && container.playbackRepository.getFavorite(roomId) != null
+            _isFavorite.value =
+                roomId != null && container.playbackRepository.getFavorite(roomId) != null
         }
 
         colorExtractionJob?.cancel()
@@ -242,9 +246,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val colors = withContext(Dispatchers.IO) {
                 val bitmap = track.artworkUri?.let { artworkUri ->
                     runCatching {
-                        getApplication<Application>().imageLoader
+                        applicationContext.imageLoader
                             .execute(
-                                ImageRequest.Builder(getApplication<Application>())
+                                ImageRequest.Builder(applicationContext)
                                     .data(artworkUri)
                                     .allowHardware(false)
                                     .build()
@@ -280,7 +284,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             try {
                 val saved = prefs.getSavedQueueState() ?: return@launch
 
-                val allSongs = container.libraryRepository.getPresentTracks(minDurationMs = 30_000L).mapNotNull { it.toTrackUiModel() }
+                val allSongs = container.libraryRepository.getPresentTracks(minDurationMs = 30_000L)
+                    .mapNotNull { it.toTrackUiModel() }
                 val songMap = allSongs.associateBy { it.id }
 
                 val restoredQueue = saved.queueIds.mapNotNull { songMap[it] }
@@ -293,7 +298,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 setCurrentTrack(restoredTrack)
 
                 val p = player ?: return@launch
-                p.setMediaItems(restoredQueue.map { it.toMediaItem() }, restoredTrackIndex, saved.positionMs)
+                p.setMediaItems(
+                    restoredQueue.map { it.toMediaItem() },
+                    restoredTrackIndex,
+                    saved.positionMs
+                )
                 p.prepare()
                 _currentPosition.value = saved.positionMs
             } catch (e: Exception) {
@@ -301,7 +310,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
     }
-    
+
     fun toggleFavorite() {
         val track = _currentTrack.value ?: return
         viewModelScope.launch {
@@ -393,18 +402,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _isShuffleEnabled.value = newState
     }
 
-    fun cycleRepeatMode() {
-        val p = player ?: return
-        val nextMode = when (p.repeatMode) {
-            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ONE
-            Player.REPEAT_MODE_ONE -> Player.REPEAT_MODE_ALL
-            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_OFF
-            else -> Player.REPEAT_MODE_ALL
-        }
-        p.repeatMode = nextMode
-        _repeatMode.value = nextMode
-    }
-
     fun skipNext() {
         val p = player ?: return
         if (p.hasNextMediaItem()) {
@@ -419,13 +416,22 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private fun logQueueEvent(track: TrackUiModel, action: QueueAction, fromPosition: Int? = null, toPosition: Int? = null) {
+    private fun logQueueEvent(
+        track: TrackUiModel,
+        action: QueueAction,
+        fromPosition: Int? = null,
+        toPosition: Int? = null
+    ) {
         viewModelScope.launch {
             val roomId = container.resolveTrackId(track.id) ?: return@launch
             container.telemetryRepository.insertQueueEvent(
                 QueueEvent(
-                    trackId = roomId, queuedAt = System.currentTimeMillis(), action = action,
-                    fromPosition = fromPosition, toPosition = toPosition, origin = PlaybackSource.MANUAL
+                    trackId = roomId,
+                    queuedAt = System.currentTimeMillis(),
+                    action = action,
+                    fromPosition = fromPosition,
+                    toPosition = toPosition,
+                    origin = PlaybackSource.MANUAL
                 )
             )
         }
@@ -472,8 +478,24 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val item = updatedList.removeAt(fromIndex)
             updatedList.add(toIndex, item)
             _currentPlaylist.value = updatedList
-            logQueueEvent(movedTrack, QueueAction.MOVE, fromPosition = fromIndex, toPosition = toIndex)
+            logQueueEvent(
+                movedTrack,
+                QueueAction.MOVE,
+                fromPosition = fromIndex,
+                toPosition = toIndex
+            )
         }
+    }
+
+    /** Drops every track after the current one; the playing track stays. */
+    fun clearUpcoming() {
+        val p = player ?: return
+        val playlist = _currentPlaylist.value
+        val from = p.currentMediaItemIndex + 1
+        if (from <= 0 || from >= playlist.size) return
+        p.removeMediaItems(from, playlist.size)
+        _currentPlaylist.value = playlist.subList(0, from)
+        playlist.subList(from, playlist.size).forEach { logQueueEvent(it, QueueAction.REMOVE) }
     }
 
     fun removeFromQueue(index: Int) {
@@ -487,7 +509,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             logQueueEvent(removedTrack, QueueAction.REMOVE, fromPosition = index)
         }
     }
-    
+
     fun seekTo(position: Float) {
         val p = player ?: return
         val positionMs = (position * p.duration).toLong()

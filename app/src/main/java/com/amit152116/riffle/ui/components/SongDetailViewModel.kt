@@ -1,9 +1,12 @@
 package com.amit152116.riffle.ui.components
 
 import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.amit152116.riffle.data.AppContainer
+import com.amit152116.riffle.data.db.analysis.AnalysisRepository
+import com.amit152116.riffle.data.db.library.LibraryRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,9 +45,10 @@ data class SongDetailUiModel(
     val mfccPresent: Boolean
 )
 
-class SongDetailViewModel(application: Application) : AndroidViewModel(application) {
-    private val libraryRepository = AppContainer.getInstance(application).libraryRepository
-    private val analysisRepository = AppContainer.getInstance(application).analysisRepository
+class SongDetailViewModel(
+    private val libraryRepository: LibraryRepository,
+    private val analysisRepository: AnalysisRepository
+) : ViewModel() {
 
     private val _detail = MutableStateFlow<SongDetailUiModel?>(null)
     val detail: StateFlow<SongDetailUiModel?> = _detail.asStateFlow()
@@ -89,6 +93,16 @@ class SongDetailViewModel(application: Application) : AndroidViewModel(applicati
                 zcr = audioFeatures?.zcr,
                 mfccPresent = audioFeatures?.mfccMean != null
             )
+        }
+    }
+
+    class Factory(private val container: AppContainer) : ViewModelProvider.Factory {
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            if (modelClass.isAssignableFrom(SongDetailViewModel::class.java)) {
+                @Suppress("UNCHECKED_CAST")
+                return SongDetailViewModel(container.libraryRepository, container.analysisRepository) as T
+            }
+            throw IllegalArgumentException("Unknown ViewModel class")
         }
     }
 }

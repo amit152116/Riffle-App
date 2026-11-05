@@ -1,36 +1,8 @@
 package com.amit152116.riffle.ui.player
 
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Lyrics
-import androidx.compose.material.icons.filled.QueueMusic
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.KeyboardArrowDown
+import android.content.Intent
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -42,67 +14,99 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.ui.draw.scale
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.RepeatOne
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.media3.common.Player
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
-import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Lyrics
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.outlined.GraphicEq
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
+import androidx.compose.material3.SheetState
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import com.amit152116.riffle.ui.components.RiffleTopBar
-import com.amit152116.riffle.ui.components.RiffleSlider
-import com.amit152116.riffle.ui.theme.favoriteRed
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.amit152116.riffle.data.db.PlaybackSource
-import com.amit152116.riffle.data.model.TrackUiModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.amit152116.riffle.data.AppContainer
 import com.amit152116.riffle.data.color.ArtworkColorExtractor
+import com.amit152116.riffle.data.model.TrackUiModel
+import com.amit152116.riffle.ui.components.AddToPlaylistSheet
 import com.amit152116.riffle.ui.components.AsyncArtwork
-import com.amit152116.riffle.ui.components.TrackRow
+import com.amit152116.riffle.ui.components.RiffleSlider
+import com.amit152116.riffle.ui.components.RiffleTopBar
+import com.amit152116.riffle.ui.components.SongDetailSheet
+import com.amit152116.riffle.ui.playlist.PlaylistViewModel
+import com.amit152116.riffle.ui.theme.favoriteRed
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.Locale
 import kotlin.math.abs
 
@@ -110,12 +114,16 @@ enum class PlayerViewMode { ARTWORK, LYRICS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlayerScreen(viewModel: PlayerViewModel, onClose: () -> Unit = {}) {
+fun PlayerScreen(
+    viewModel: PlayerViewModel,
+    onNavigateToArtist: (String) -> Unit = {},
+    onNavigateToAlbum: (String) -> Unit = {},
+    onClose: () -> Unit = {}
+) {
     val currentTrack by viewModel.currentTrack.collectAsState()
     val currentColors by viewModel.currentColors.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
     val isShuffleEnabled by viewModel.isShuffleEnabled.collectAsState()
-    val repeatMode by viewModel.repeatMode.collectAsState()
     val currentPosition by viewModel.currentPosition.collectAsState()
     val duration by viewModel.duration.collectAsState()
     val sleepTimerRemainingMs by viewModel.sleepTimerRemainingMs.collectAsState()
@@ -125,14 +133,31 @@ fun PlayerScreen(viewModel: PlayerViewModel, onClose: () -> Unit = {}) {
     var viewMode by remember { mutableStateOf(PlayerViewMode.ARTWORK) }
     var showQueueSheet by remember { mutableStateOf(false) }
     var showSleepTimerDialog by remember { mutableStateOf(false) }
-    
-    val sheetState = rememberModalBottomSheetState()
+
+    var menuExpanded by remember { mutableStateOf(false) }
+    var showAddToPlaylistSheet by remember { mutableStateOf(false) }
+    var showDetailSheet by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val playlistViewModel: PlaylistViewModel = viewModel(
+        factory = AppContainer.getInstance(context).playlistViewModelFactory
+    )
+
+    // From fully expanded, a swipe down settles at the partial size first; a second swipe closes.
+    // Programmatic hides (back press) set allowHide to bypass this.
+    val queueSheetScope = rememberCoroutineScope()
+    val allowSheetHide = remember { booleanArrayOf(false) }
+    val sheetStateHolder = remember { arrayOfNulls<SheetState>(1) }
+    val sheetState = rememberModalBottomSheetState(
+        confirmValueChange = { target ->
+            target != SheetValue.Hidden || allowSheetHide[0] || sheetStateHolder[0]?.currentValue != SheetValue.Expanded
+        })
+    sheetStateHolder[0] = sheetState
 
     // Animations
     val artworkScale by animateFloatAsState(
-        targetValue = if (isPlaying) 1f else 0.88f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow),
-        label = "artworkScale"
+        targetValue = if (isPlaying) 1f else 0.88f, animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow
+        ), label = "artworkScale"
     )
 
     val favScale by animateFloatAsState(
@@ -142,7 +167,7 @@ fun PlayerScreen(viewModel: PlayerViewModel, onClose: () -> Unit = {}) {
     )
 
     val progress = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f
-    
+
     // Formatting function
     val formatTime = { timeMs: Long ->
         val totalSeconds = timeMs / 1000
@@ -181,330 +206,386 @@ fun PlayerScreen(viewModel: PlayerViewModel, onClose: () -> Unit = {}) {
                 .statusBarsPadding()
                 .height(1.dp)
         )
-    Scaffold(
-        topBar = {
-            RiffleTopBar(
-                onBack = onClose,
-                navigationIcon = {
+        Scaffold(
+            topBar = {
+                RiffleTopBar(onBack = onClose, navigationIcon = {
                     IconButton(onClick = onClose) {
                         Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Close")
                     }
-                },
-                containerColor = Color.Transparent,
-                actions = {
-                    IconButton(onClick = { showSleepTimerDialog = true }) {
+                }, containerColor = Color.Transparent, actions = {
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = "More")
+                        }
+                        DropdownMenu(
+                            expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                            DropdownMenuItem(text = { Text("Add to playlist") }, onClick = {
+                                showAddToPlaylistSheet = true
+                                menuExpanded = false
+                            })
+                            DropdownMenuItem(text = { Text("Go to album") }, onClick = {
+                                onNavigateToAlbum(currentTrack!!.album)
+                                menuExpanded = false
+                                onClose()
+                            })
+                            DropdownMenuItem(text = { Text("Go to artist") }, onClick = {
+                                onNavigateToArtist(currentTrack!!.artist)
+                                menuExpanded = false
+                                onClose()
+                            })
+                            DropdownMenuItem(text = { Text("Share") }, onClick = {
+                                context.startActivity(
+                                    Intent.createChooser(
+                                        Intent(Intent.ACTION_SEND).apply {
+                                            type = "audio/*"
+                                            putExtra(
+                                                Intent.EXTRA_STREAM, currentTrack!!.mediaUri
+                                            )
+                                            putExtra(
+                                                Intent.EXTRA_TEXT,
+                                                "${currentTrack!!.title} • ${currentTrack!!.artist}"
+                                            )
+                                        }, "Share song"
+                                    )
+                                )
+                                menuExpanded = false
+                            })
+                            DropdownMenuItem(text = { Text("Tag editor") }, onClick = {
+                                Toast.makeText(
+                                    context, "Tag editor support coming soon", Toast.LENGTH_SHORT
+                                ).show()
+                                menuExpanded = false
+                            })
+                            DropdownMenuItem(text = { Text("Details") }, onClick = {
+                                showDetailSheet = true
+                                menuExpanded = false
+                            })
+                            DropdownMenuItem(text = { Text("Set as ringtone") }, onClick = {
+                                Toast.makeText(
+                                    context, "Ringtone support coming soon", Toast.LENGTH_SHORT
+                                ).show()
+                                menuExpanded = false
+                            })
+                            DropdownMenuItem(text = { Text("Add to blacklist") }, onClick = {
+                                viewModel.blacklistTrack(currentTrack!!)
+                                menuExpanded = false
+                            })
+                            DropdownMenuItem(text = { Text("Delete from device") }, onClick = {
+                                Toast.makeText(
+                                    context, "Delete support coming soon", Toast.LENGTH_SHORT
+                                ).show()
+                                menuExpanded = false
+                            })
+                        }
+                    }
+                })
+            }, containerColor = Color.Transparent
+        ) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                ) {
+                    // Content Area (Artwork / Synced Lyrics / Up Next Queue)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        when (viewMode) {
+                            PlayerViewMode.ARTWORK -> {
+                                var seekAccumulator by remember { mutableStateOf(0) }
+                                var isRightSide by remember { mutableStateOf(true) }
+                                var lastSeekTapTime by remember { mutableStateOf(0L) }
+
+                                val currentSeekAccumulator by rememberUpdatedState(seekAccumulator)
+                                val currentIsRightSide by rememberUpdatedState(isRightSide)
+                                val currentLastSeekTapTime by rememberUpdatedState(lastSeekTapTime)
+
+                                LaunchedEffect(seekAccumulator, lastSeekTapTime) {
+                                    if (seekAccumulator != 0) {
+                                        delay(1000)
+                                        seekAccumulator = 0
+                                    }
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .scale(artworkScale)
+                                        .pointerInput(Unit) {
+                                            detectTapGestures(onTap = { offset ->
+                                                val now = System.currentTimeMillis()
+                                                val isRight = offset.x > size.width / 2
+                                                if (now - currentLastSeekTapTime < 500 && currentIsRightSide == isRight && currentSeekAccumulator != 0) {
+                                                    val delta = if (isRight) 5 else -5
+                                                    seekAccumulator = currentSeekAccumulator + delta
+                                                    viewModel.seekBy(delta * 1000L)
+                                                    lastSeekTapTime = now
+                                                }
+                                            }, onDoubleTap = { offset ->
+                                                val now = System.currentTimeMillis()
+                                                val isRight = offset.x > size.width / 2
+                                                val delta = if (isRight) 5 else -5
+
+                                                if (currentIsRightSide == isRight && currentSeekAccumulator != 0 && now - currentLastSeekTapTime < 500) {
+                                                    seekAccumulator = currentSeekAccumulator + delta
+                                                } else {
+                                                    isRightSide = isRight
+                                                    seekAccumulator = delta
+                                                }
+                                                viewModel.seekBy(delta * 1000L)
+                                                lastSeekTapTime = now
+                                            })
+                                        }, contentAlignment = Alignment.Center
+                                ) {
+                                    AsyncArtwork(
+                                        uri = currentTrack?.artworkUri,
+                                        modifier = Modifier.fillMaxSize(),
+                                        shape = RoundedCornerShape(24.dp)
+                                    )
+
+                                    SeekOverlay(
+                                        seekAccumulator = seekAccumulator, isRightSide = isRightSide
+                                    )
+                                }
+                            }
+
+                            PlayerViewMode.LYRICS -> {
+                                SyncedLyricsView(
+                                    track = currentTrack, currentPositionMs = currentPosition
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    // Title and Metadata
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 4.dp)
+                        ) {
+                            Text(
+                                text = currentTrack?.title ?: "Unknown",
+                                style = MaterialTheme.typography.headlineLarge,
+                                color = MaterialTheme.colorScheme.onBackground,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = currentTrack?.artist ?: "Unknown",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        IconButton(onClick = { viewModel.toggleFavorite() }) {
+                            Icon(
+                                imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                                contentDescription = "Favorite",
+                                tint = if (isFavorite) favoriteRed else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.scale(favScale)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Progress Bar
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp) // Visual padding for slider thumb
+                    ) {
+                        RiffleSlider(
+                            value = progress,
+                            onValueChange = { viewModel.seekTo(it) },
+                            valueRange = 0f..1f,
+                            startLabel = formatTime(currentPosition),
+                            endLabel = formatTime(duration),
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.primaryContainer,
+                                activeTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                                inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant
+                            ),
+                            activeTrackColorOverride = Color.White,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(5.dp))
+
+                // Playback Controls
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp), // This provides the outer padding for Shuffle and Timer
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Shuffle Button with state container animation
+                    val shuffleIconColor by animateColorAsState(
+                        targetValue = if (isShuffleEnabled) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                        label = "shuffleIconColor"
+                    )
+
+                    IconButton(
+                        onClick = { viewModel.toggleShuffle() },
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .size(52.dp)
+                    ) {
                         Icon(
-                            Icons.Filled.Timer,
+                            Icons.Filled.Shuffle,
+                            contentDescription = "Shuffle",
+                            tint = shuffleIconColor,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth(0.6f)
+                            .align(Alignment.Center),
+                        horizontalArrangement = Arrangement.SpaceAround,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Previous Button
+                        IconButton(
+                            onClick = { viewModel.skipPrevious() }, modifier = Modifier.size(56.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.SkipPrevious,
+                                contentDescription = "Previous",
+                                tint = MaterialTheme.colorScheme.onBackground,
+                                modifier = Modifier.size(45.dp)
+                            )
+                        }
+                        // Animated Play / Pause Circle Button
+                        val playButtonScale by animateFloatAsState(
+                            targetValue = if (isPlaying) 1.05f else 1f,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                            label = "playButtonScale"
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .scale(playButtonScale)
+                                .clip(CircleShape)
+                                .background(Color.White)
+                                .border(1.dp, Color.White, CircleShape)
+                                .clickable { viewModel.togglePlayPause() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            AnimatedContent(
+                                targetState = isPlaying, transitionSpec = {
+                                    (fadeIn() + scaleIn()).togetherWith(fadeOut() + scaleOut())
+                                }, label = "playPauseTransition"
+                            ) { playing ->
+                                Icon(
+                                    imageVector = if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                    contentDescription = if (playing) "Pause" else "Play",
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(45.dp)
+                                )
+                            }
+                        }
+
+                        // Next Button
+                        IconButton(
+                            onClick = { viewModel.skipNext() }, modifier = Modifier.size(56.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.SkipNext,
+                                contentDescription = "Next",
+                                tint = MaterialTheme.colorScheme.onBackground,
+                                modifier = Modifier.size(45.dp)
+                            )
+                        }
+                    }
+
+                    IconButton(
+                        onClick = { showSleepTimerDialog = true },
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .size(52.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.Timer,
                             contentDescription = "Sleep timer",
                             tint = if (sleepTimerRemainingMs != null || sleepTimerEndOfTrack) {
                                 MaterialTheme.colorScheme.primaryContainer
                             } else {
                                 MaterialTheme.colorScheme.onBackground
-                            }
-                        )
-                    }
-                    IconButton(onClick = { /* TODO */ }) {
-                        Icon(Icons.Filled.MoreHoriz, contentDescription = "More")
-                    }
-                }
-            )
-        },
-        containerColor = Color.Transparent
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // Content Area (Artwork / Synced Lyrics / Up Next Queue)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                when (viewMode) {
-                    PlayerViewMode.ARTWORK -> {
-                        var seekAccumulator by remember { mutableStateOf(0) }
-                        var isRightSide by remember { mutableStateOf(true) }
-                        var lastSeekTapTime by remember { mutableStateOf(0L) }
-
-                        val currentSeekAccumulator by rememberUpdatedState(seekAccumulator)
-                        val currentIsRightSide by rememberUpdatedState(isRightSide)
-                        val currentLastSeekTapTime by rememberUpdatedState(lastSeekTapTime)
-
-                        LaunchedEffect(seekAccumulator, lastSeekTapTime) {
-                            if (seekAccumulator != 0) {
-                                delay(1000)
-                                seekAccumulator = 0
-                            }
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .scale(artworkScale)
-                                .pointerInput(Unit) {
-                                    detectTapGestures(
-                                        onTap = { offset ->
-                                            val now = System.currentTimeMillis()
-                                            val isRight = offset.x > size.width / 2
-                                            if (now - currentLastSeekTapTime < 500 && currentIsRightSide == isRight && currentSeekAccumulator != 0) {
-                                                val delta = if (isRight) 5 else -5
-                                                seekAccumulator = currentSeekAccumulator + delta
-                                                viewModel.seekBy(delta * 1000L)
-                                                lastSeekTapTime = now
-                                            }
-                                        },
-                                        onDoubleTap = { offset ->
-                                            val now = System.currentTimeMillis()
-                                            val isRight = offset.x > size.width / 2
-                                            val delta = if (isRight) 5 else -5
-                                            
-                                            if (currentIsRightSide == isRight && currentSeekAccumulator != 0 && now - currentLastSeekTapTime < 500) {
-                                                seekAccumulator = currentSeekAccumulator + delta
-                                            } else {
-                                                isRightSide = isRight
-                                                seekAccumulator = delta
-                                            }
-                                            viewModel.seekBy(delta * 1000L)
-                                            lastSeekTapTime = now
-                                        }
-                                    )
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            AsyncArtwork(
-                                uri = currentTrack?.artworkUri,
-                                modifier = Modifier.fillMaxSize(),
-                                shape = RoundedCornerShape(24.dp)
-                            )
-
-                            SeekOverlay(
-                                seekAccumulator = seekAccumulator,
-                                isRightSide = isRightSide
-                            )
-                        }
-                    }
-                    PlayerViewMode.LYRICS -> {
-                        SyncedLyricsView(
-                            track = currentTrack,
-                            currentPositionMs = currentPosition
+                            },
+                            modifier = Modifier.size(28.dp)
                         )
                     }
                 }
-            }
-            
-            Spacer(modifier = Modifier.height(32.dp))
-            
-            // Title and Metadata
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = currentTrack?.title ?: "Unknown",
-                        style = MaterialTheme.typography.headlineLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = currentTrack?.artist ?: "Unknown",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                
-                IconButton(onClick = { viewModel.toggleFavorite() }) {
-                    Icon(
-                        imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                        contentDescription = "Favorite",
-                        tint = if (isFavorite) favoriteRed else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.scale(favScale)
-                    )
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // Progress Bar
-            Column(modifier = Modifier.fillMaxWidth()) {
-                RiffleSlider(
-                    value = progress,
-                    onValueChange = { viewModel.seekTo(it) },
-                    valueRange = 0f..1f,
-                    startLabel = formatTime(currentPosition),
-                    endLabel = formatTime(duration),
-                    colors = SliderDefaults.colors(
-                        thumbColor = MaterialTheme.colorScheme.primaryContainer,
-                        activeTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                        inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant
-                    ),
-                    activeTrackColorOverride = Color.White,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                
-            }
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // Playback Controls
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Shuffle Button with state container animation
-                val shuffleIconColor by animateColorAsState(
-                    targetValue = if (isShuffleEnabled) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                    label = "shuffleIconColor"
-                )
 
-                IconButton(
-                    onClick = { viewModel.toggleShuffle() },
-                    modifier = Modifier.size(52.dp)
-                ) {
-                    Icon(
-                        Icons.Filled.Shuffle,
-                        contentDescription = "Shuffle",
-                        tint = shuffleIconColor,
-                        modifier = Modifier.size(30.dp)
-                    )
-                }
-                
-                // Previous Button
-                IconButton(
-                    onClick = { viewModel.skipPrevious() },
-                    modifier = Modifier.size(56.dp)
-                ) {
-                    Icon(
-                        Icons.Filled.SkipPrevious,
-                        contentDescription = "Previous",
-                        tint = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.size(36.dp)
-                    )
-                }
-                
-                // Animated Play / Pause Circle Button
-                val playButtonScale by animateFloatAsState(
-                    targetValue = if (isPlaying) 1.05f else 1f,
-                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-                    label = "playButtonScale"
-                )
+                Spacer(modifier = Modifier.height(32.dp))
 
-                Box(
+                // Intelligent Actions / Mode Switcher
+                Row(
                     modifier = Modifier
-                        .size(64.dp)
-                        .scale(playButtonScale)
-                        .clip(CircleShape)
-                        .background(Color.White)
-                        .border(1.dp, Color.White, CircleShape)
-                        .clickable { viewModel.togglePlayPause() },
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    AnimatedContent(
-                        targetState = isPlaying,
-                        transitionSpec = {
-                            (fadeIn() + scaleIn()).togetherWith(fadeOut() + scaleOut())
-                        },
-                        label = "playPauseTransition"
-                    ) { playing ->
-                        Icon(
-                            imageVector = if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                            contentDescription = if (playing) "Pause" else "Play",
-                            tint = Color.Black,
-                            modifier = Modifier.size(38.dp)
-                        )
-                    }
+                    IntelligentActionItem(
+                        label = if (viewMode == PlayerViewMode.LYRICS) "Artwork" else "Lyrics",
+                        icon = if (viewMode == PlayerViewMode.LYRICS) Icons.Filled.Person else Icons.Filled.Lyrics,
+                        onClick = {
+                            viewMode =
+                                if (viewMode == PlayerViewMode.LYRICS) PlayerViewMode.ARTWORK else PlayerViewMode.LYRICS
+                        })
+                    IntelligentActionItem(
+                        label = "Queue", icon = Icons.Filled.QueueMusic, onClick = {
+                            showQueueSheet = true
+                        })
+                    IntelligentActionItem("Similar", Icons.Outlined.GraphicEq)
                 }
-                
-                // Next Button
-                IconButton(
-                    onClick = { viewModel.skipNext() },
-                    modifier = Modifier.size(56.dp)
-                ) {
-                    Icon(
-                        Icons.Filled.SkipNext,
-                        contentDescription = "Next",
-                        tint = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.size(36.dp)
-                    )
-                }
-                
-                // Repeat Button with state container animation
-                val isRepeatActive = repeatMode != Player.REPEAT_MODE_OFF
-                val repeatIconColor by animateColorAsState(
-                    targetValue = if (isRepeatActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                    label = "repeatIconColor"
-                )
+            }
 
-                IconButton(
-                    onClick = { viewModel.cycleRepeatMode() },
-                    modifier = Modifier.size(52.dp)
+            // Spotify-style Bottom Sheet Queue
+            if (showQueueSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = { showQueueSheet = false },
+                    sheetState = sheetState,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface
                 ) {
-                    val repeatIcon = when (repeatMode) {
-                        Player.REPEAT_MODE_ONE -> Icons.Filled.RepeatOne
-                        Player.REPEAT_MODE_ALL -> Icons.Filled.Repeat
-                        else -> Icons.Filled.Repeat
+                    BackHandler {
+                        allowSheetHide[0] = true
+                        queueSheetScope.launch { sheetState.hide() }.invokeOnCompletion {
+                            allowSheetHide[0] = false
+                            showQueueSheet = false
+                        }
                     }
-                    Icon(
-                        repeatIcon,
-                        contentDescription = "Repeat",
-                        tint = repeatIconColor,
-                        modifier = Modifier.size(30.dp)
-                    )
+                    QueueSheetContent(viewModel = viewModel)
                 }
             }
-            
-            Spacer(modifier = Modifier.weight(1f))
-            
-            // Intelligent Actions / Mode Switcher
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                IntelligentActionItem(
-                    label = if (viewMode == PlayerViewMode.LYRICS) "Artwork" else "Lyrics",
-                    icon = if (viewMode == PlayerViewMode.LYRICS) Icons.Filled.Person else Icons.Filled.Lyrics,
-                    onClick = {
-                        viewMode = if (viewMode == PlayerViewMode.LYRICS) PlayerViewMode.ARTWORK else PlayerViewMode.LYRICS
-                    }
-                )
-                IntelligentActionItem(
-                    label = "Queue",
-                    icon = Icons.Filled.QueueMusic,
-                    onClick = {
-                        showQueueSheet = true
-                    }
-                )
-                IntelligentActionItem("Similar", Icons.Outlined.GraphicEq)
-                IntelligentActionItem("More", Icons.Filled.MoreHoriz)
-            }
         }
-        
-        // Spotify-style Bottom Sheet Queue
-        if (showQueueSheet) {
-            ModalBottomSheet(
-                onDismissRequest = { showQueueSheet = false },
-                sheetState = sheetState,
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                contentColor = MaterialTheme.colorScheme.onSurface
-            ) {
-                QueueSheetContent(viewModel = viewModel)
-            }
-        }
-    }
     }
 
     if (showSleepTimerDialog) {
@@ -545,16 +626,26 @@ fun PlayerScreen(viewModel: PlayerViewModel, onClose: () -> Unit = {}) {
                 TextButton(onClick = { showSleepTimerDialog = false }) {
                     Text("Cancel")
                 }
-            }
-        )
+            })
+    }
+
+    if (showAddToPlaylistSheet && currentTrack != null) {
+        AddToPlaylistSheet(
+            tracks = listOf(currentTrack!!),
+            viewModel = playlistViewModel,
+            onDismiss = { showAddToPlaylistSheet = false })
+    }
+
+    if (showDetailSheet && currentTrack != null) {
+        SongDetailSheet(
+            track = currentTrack!!, onDismiss = { showDetailSheet = false })
     }
 }
 
 @Composable
 private fun SleepTimerOption(label: String, onClick: () -> Unit) {
     TextButton(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth()
+        onClick = onClick, modifier = Modifier.fillMaxWidth()
     ) {
         Text(label, modifier = Modifier.fillMaxWidth())
     }
@@ -562,13 +653,10 @@ private fun SleepTimerOption(label: String, onClick: () -> Unit) {
 
 @Composable
 fun IntelligentActionItem(
-    label: String,
-    icon: ImageVector,
-    onClick: () -> Unit = {}
+    label: String, icon: ImageVector, onClick: () -> Unit = {}
 ) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.width(72.dp)
+        horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(72.dp)
     ) {
         IconButton(onClick = onClick) {
             Icon(
@@ -647,8 +735,12 @@ fun SyncedLyricsView(track: TrackUiModel?, currentPositionMs: Long) {
     ) {
         itemsIndexed(lyrics) { index, line ->
             val isActive = index == activeIndex
-            val scale by animateFloatAsState(targetValue = if (isActive) 1.15f else 0.95f, label = "lyricScale")
-            val alpha by animateFloatAsState(targetValue = if (isActive) 1f else 0.4f, label = "lyricAlpha")
+            val scale by animateFloatAsState(
+                targetValue = if (isActive) 1.15f else 0.95f, label = "lyricScale"
+            )
+            val alpha by animateFloatAsState(
+                targetValue = if (isActive) 1f else 0.4f, label = "lyricAlpha"
+            )
 
             Text(
                 text = line.text,
@@ -656,8 +748,7 @@ fun SyncedLyricsView(track: TrackUiModel?, currentPositionMs: Long) {
                     fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal
                 ),
                 color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier
-                    .graphicsLayer(alpha = alpha, scaleX = scale, scaleY = scale),
+                modifier = Modifier.graphicsLayer(alpha = alpha, scaleX = scale, scaleY = scale),
                 textAlign = TextAlign.Center
             )
         }
@@ -684,8 +775,7 @@ fun BoxScope.SeekOverlay(seekAccumulator: Int, isRightSide: Boolean) {
                             listOf(Color.Black.copy(alpha = 0.4f), Color.Transparent)
                         }
                     )
-                ),
-            contentAlignment = Alignment.Center
+                ), contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
@@ -700,101 +790,6 @@ fun BoxScope.SeekOverlay(seekAccumulator: Int, isRightSide: Boolean) {
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
-            }
-        }
-    }
-}
-
-@Composable
-fun QueueSheetContent(viewModel: PlayerViewModel) {
-    val playlist by viewModel.currentPlaylist.collectAsState()
-    val currentTrack by viewModel.currentTrack.collectAsState()
-
-    val currentIndex = playlist.indexOfFirst { it.id == currentTrack?.id }
-    val upcomingTracks = if (currentIndex >= 0 && currentIndex + 1 < playlist.size) {
-        playlist.subList(currentIndex + 1, playlist.size)
-    } else {
-        emptyList()
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .fillMaxHeight(0.75f)
-            .padding(horizontal = 24.dp, vertical = 8.dp)
-    ) {
-        Text(
-            text = "Queue",
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        val queueListState = rememberLazyListState()
-        LazyColumn(
-            state = queueListState,
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // Currently Playing section
-            if (currentTrack != null) {
-                item {
-                    Text(
-                        text = "Now Playing",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
-                }
-                item {
-                    TrackRow(
-                        track = currentTrack!!,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f))
-                            .clickable {
-                                viewModel.playTrack(currentTrack!!, viewModel.currentPlaylist.value)
-                            }
-                            .padding(8.dp),
-                        onPlayNext = { viewModel.playNext(currentTrack!!) },
-                        onAddToQueue = { viewModel.addToQueue(currentTrack!!) },
-                        onAddToBlacklist = { viewModel.blacklistTrack(currentTrack!!) }
-                    )
-                }
-            }
-
-            // Up Next section
-            if (upcomingTracks.isNotEmpty()) {
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Next In Queue",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
-                }
-
-                itemsIndexed(upcomingTracks) { index, track ->
-                    val originalIndex = currentIndex + 1 + index
-                    TrackRow(
-                        track = track,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable {
-                                viewModel.playTrack(track, viewModel.currentPlaylist.value, PlaybackSource.QUEUE)
-                            }
-                            .padding(8.dp),
-                        leadingText = "${index + 1}",
-                        trailingAction = { viewModel.removeFromQueue(originalIndex) },
-                        trailingActionIcon = Icons.Filled.Close,
-                        trailingActionDescription = "Remove from queue",
-                        onPlayNext = { viewModel.playNext(track) },
-                        onAddToQueue = { viewModel.addToQueue(track) }
-                    )
-                }
             }
         }
     }

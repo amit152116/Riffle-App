@@ -15,11 +15,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 class TrackListViewModel(
-    application: Application,
+    private val container: AppContainer,
     private val listType: String
-) : AndroidViewModel(application) {
+) : ViewModel() {
 
-    private val container = AppContainer.getInstance(application)
     private val repository = container.libraryRepository
 
     private val _tracks = MutableStateFlow<List<TrackUiModel>>(emptyList())
@@ -50,13 +49,13 @@ class TrackListViewModel(
     }
 
     class Factory(
-        private val application: Application,
+        private val container: AppContainer,
         private val listType: String
     ) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(TrackListViewModel::class.java)) {
                 @Suppress("UNCHECKED_CAST")
-                return TrackListViewModel(application, listType) as T
+                return TrackListViewModel(container, listType) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class")
         }

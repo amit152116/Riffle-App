@@ -9,34 +9,49 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.amit152116.riffle.data.model.TrackUiModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.amit152116.riffle.data.AppContainer
 import com.amit152116.riffle.ui.components.RiffleTopBar
 import com.amit152116.riffle.ui.components.TrackRow
 import com.amit152116.riffle.ui.player.PlayerViewModel
 
 @Composable
 fun TrackListScreen(
-    title: String,
-    viewModel: TrackListViewModel,
+    listType: String,
     playerViewModel: PlayerViewModel,
     onBack: () -> Unit,
     onNavigateToArtist: (String) -> Unit = {},
     onNavigateToAlbum: (String) -> Unit = {},
-    // Set for the blacklist listType: the row's trailing action removes the
-    // track from the blacklist instead of opening the normal overflow menu -
-    // "Add to blacklist" on an already-blacklisted track would just be a
-    // confusing re-add.
-    onRemoveFromBlacklist: ((TrackUiModel) -> Unit)? = null
 ) {
+    val title = remember(listType) {
+        when (listType) {
+            "last-added" -> "Last Added"
+            "favorites" -> "Favorites"
+            "most-played" -> "Most Played"
+            "history" -> "History"
+            "blacklist" -> "Blacklisted Tracks"
+            else -> "Tracks"
+        }
+    }
+
+    val viewModel: TrackListViewModel = viewModel(
+        factory = TrackListViewModel.Factory(
+            AppContainer.getInstance(LocalContext.current),
+            listType
+        )
+    )
     val tracks by viewModel.tracks.collectAsState()
 
     Scaffold(
@@ -75,9 +90,11 @@ fun TrackListScreen(
                         onGoToArtist = { onNavigateToArtist(track.artist) },
                         onGoToAlbum = { onNavigateToAlbum(track.album) },
                         onAddToBlacklist = { playerViewModel.blacklistTrack(track) },
-                        trailingAction = onRemoveFromBlacklist?.let { { it(track) } },
-                        trailingActionIcon = Icons.Filled.Close,
-                        trailingActionDescription = "Remove from blacklist"
+                        trailingActionIcon = if (listType == "blacklist") Icons.Filled.Close else Icons.Filled.MoreVert,
+                        trailingActionDescription = if (listType == "blacklist") "Remove from blacklist" else "More options",
+                        trailingAction = if (listType == "blacklist") {
+                            { viewModel.unblacklist(track) }
+                        } else null
                     )
                 }
             }

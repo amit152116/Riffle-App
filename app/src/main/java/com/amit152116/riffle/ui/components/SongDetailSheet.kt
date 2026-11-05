@@ -41,6 +41,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.platform.LocalContext
+import com.amit152116.riffle.data.AppContainer
 import com.amit152116.riffle.data.model.TrackUiModel
 import java.text.DateFormat
 import java.util.Date
@@ -51,7 +53,9 @@ import java.util.Locale
 fun SongDetailSheet(
     track: TrackUiModel,
     onDismiss: () -> Unit,
-    viewModel: SongDetailViewModel = viewModel()
+    viewModel: SongDetailViewModel = viewModel(
+        factory = AppContainer.getInstance(LocalContext.current).songDetailViewModelFactory
+    )
 ) {
     val detail by viewModel.detail.collectAsState()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
