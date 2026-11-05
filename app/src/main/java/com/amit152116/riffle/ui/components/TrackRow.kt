@@ -32,7 +32,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.amit152116.riffle.data.model.TrackUiModel
+import com.amit152116.riffle.ui.playlist.PlaylistViewModel
 
 @Composable
 fun TrackRow(
@@ -42,6 +44,7 @@ fun TrackRow(
     onAddToQueue: () -> Unit = {},
     onGoToAlbum: () -> Unit = {},
     onGoToArtist: () -> Unit = {},
+    onAddToBlacklist: () -> Unit = {},
     leadingText: String? = null,
     trailingAction: (() -> Unit)? = null,
     trailingActionIcon: ImageVector = Icons.Filled.MoreVert,
@@ -51,7 +54,10 @@ fun TrackRow(
     onSelectionToggle: () -> Unit = {}
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
+    var showAddToPlaylistSheet by remember { mutableStateOf(false) }
+    var showDetailSheet by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val playlistViewModel: PlaylistViewModel = viewModel()
 
     fun showUnavailable(message: String) {
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
@@ -132,7 +138,10 @@ fun TrackRow(
                         onAddToQueue()
                         menuExpanded = false
                     }
-                    SongMenuItem("Add to playlist") { showUnavailable("Playlist support coming soon") }
+                    SongMenuItem("Add to playlist") {
+                        showAddToPlaylistSheet = true
+                        menuExpanded = false
+                    }
                     SongMenuItem("Go to album") {
                         onGoToAlbum()
                         menuExpanded = false
@@ -155,13 +164,34 @@ fun TrackRow(
                         menuExpanded = false
                     }
                     SongMenuItem("Tag editor") { showUnavailable("Tag editor support coming soon") }
-                    SongMenuItem("Details") { showUnavailable("Song details support coming soon") }
+                    SongMenuItem("Details") {
+                        showDetailSheet = true
+                        menuExpanded = false
+                    }
                     SongMenuItem("Set as ringtone") { showUnavailable("Ringtone support coming soon") }
-                    SongMenuItem("Add to blacklist") { showUnavailable("Blacklist support coming soon") }
+                    SongMenuItem("Add to blacklist") {
+                        onAddToBlacklist()
+                        menuExpanded = false
+                    }
                     SongMenuItem("Delete from device") { showUnavailable("Delete support coming soon") }
                 }
             }
         }
+    }
+
+    if (showAddToPlaylistSheet) {
+        AddToPlaylistSheet(
+            tracks = listOf(track),
+            viewModel = playlistViewModel,
+            onDismiss = { showAddToPlaylistSheet = false }
+        )
+    }
+
+    if (showDetailSheet) {
+        SongDetailSheet(
+            track = track,
+            onDismiss = { showDetailSheet = false }
+        )
     }
 }
 

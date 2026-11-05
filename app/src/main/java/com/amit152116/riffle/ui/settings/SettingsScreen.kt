@@ -58,7 +58,8 @@ import com.amit152116.riffle.ui.library.LibraryViewModel
 fun SettingsScreen(
     playerViewModel: PlayerViewModel,
     libraryViewModel: LibraryViewModel,
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    onNavigateToBlacklist: () -> Unit = {}
 ) {
     val isCrossfadeEnabled by playerViewModel.isCrossfadeEnabled.collectAsState()
     val crossfadeSeconds by playerViewModel.crossfadeSeconds.collectAsState()
@@ -142,6 +143,7 @@ fun SettingsScreen(
                     SettingToggleItem("Metadata enrichment", checked = true, onCheckedChange = {})
                     SettingActionItem("Feature analysis", "Run audio analysis on missing tracks", onClick = {})
                     SettingActionItem("Rebuild similarity index", onClick = {})
+                    SettingActionItem("Blacklisted tracks", onClick = onNavigateToBlacklist)
                 }
             }
             item {

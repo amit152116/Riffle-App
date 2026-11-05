@@ -1,5 +1,6 @@
 package com.amit152116.riffle.ui.home
 
+import android.graphics.Paint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -50,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
@@ -73,9 +76,13 @@ fun HomeScreen(
     onNavigateToSection: (String) -> Unit = {},
     onNavigateToArtist: (String) -> Unit = {},
     onNavigateToAlbum: (String) -> Unit = {},
-    onNavigateToSearch: () -> Unit = {}
+    onNavigateToSearch: () -> Unit = {},
+    onNavigateToList: (String) -> Unit = {}
 ) {
     val songs by libraryViewModel.songs.collectAsState()
+    val topArtistTracks by libraryViewModel.topArtistTracks.collectAsState()
+    val topAlbumTracks by libraryViewModel.topAlbumTracks.collectAsState()
+    val recentTracks by libraryViewModel.recentTracks.collectAsState()
     val homeListState = rememberLazyListState()
     
     Scaffold(
@@ -114,19 +121,20 @@ fun HomeScreen(
                 .padding(paddingValues),
             contentPadding = PaddingValues(bottom = 80.dp) // padding for bottom nav
         ) {
-            item {
-                SmartShuffleCard(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 12.dp)
-                )
-            }
+//            item {
+//                SmartShuffleCard(
+//                    modifier = Modifier
+//                        .fillMaxWidth()
+//                        .padding(horizontal = 20.dp, vertical = 12.dp)
+//                )
+//            }
 
             item {
                 QuickAccessGrid(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 16.dp)
+                        .padding(horizontal = 20.dp, vertical = 8.dp),
+                    onNavigateToList = onNavigateToList
                 )
             }
 
@@ -139,7 +147,10 @@ fun HomeScreen(
 
             item {
                 HomeSections(
-                    tracks = songs,
+                    allTracks = songs,
+                    topArtistTracks = topArtistTracks,
+                    topAlbumTracks = topAlbumTracks,
+                    recentTracks = recentTracks,
                     playerViewModel = playerViewModel,
                     onNavigateToSection = onNavigateToSection,
                     onNavigateToArtist = onNavigateToArtist,
@@ -152,54 +163,49 @@ fun HomeScreen(
 
 @Composable
 private fun HomeSections(
-    tracks: List<TrackUiModel>,
+    allTracks: List<TrackUiModel>,
+    topArtistTracks: List<TrackUiModel>,
+    topAlbumTracks: List<TrackUiModel>,
+    recentTracks: List<TrackUiModel>,
     playerViewModel: PlayerViewModel,
     onNavigateToSection: (String) -> Unit,
     onNavigateToArtist: (String) -> Unit,
     onNavigateToAlbum: (String) -> Unit
 ) {
-    if (tracks.isEmpty()) return
+    if (allTracks.isEmpty()) return
 
-    val artistTracks = tracks
-        .groupBy { it.artist }
-        .entries
-        .sortedByDescending { it.value.size }
-        .map { it.value.first() }
-    val albumTracks = tracks
-        .groupBy { it.album }
-        .entries
-        .sortedByDescending { it.value.size }
-        .map { it.value.first() }
+    val recentArtists = recentTracks.groupBy { it.artist }.map { it.value.first() }
+    val recentAlbums = recentTracks.groupBy { it.album }.map { it.value.first() }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         HomeArtistSection(
             title = "Top artists",
-            tracks = artistTracks.take(5),
-            allTracks = tracks,
+            tracks = topArtistTracks.take(5),
+            allTracks = allTracks,
             playerViewModel = playerViewModel,
             onSeeAll = { onNavigateToSection(HomeSectionType.TOP_ARTISTS) },
             onNavigateToArtist = onNavigateToArtist
         )
         HomeAlbumSection(
             title = "Top albums",
-            tracks = albumTracks.take(5),
-            allTracks = tracks,
+            tracks = topAlbumTracks.take(5),
+            allTracks = allTracks,
             playerViewModel = playerViewModel,
             onSeeAll = { onNavigateToSection(HomeSectionType.TOP_ALBUMS) },
             onNavigateToAlbum = onNavigateToAlbum
         )
         HomeArtistSection(
             title = "Recent artists",
-            tracks = artistTracks.asReversed().take(5),
-            allTracks = tracks,
+            tracks = recentArtists.take(5),
+            allTracks = allTracks,
             playerViewModel = playerViewModel,
             onSeeAll = { onNavigateToSection(HomeSectionType.RECENT_ARTISTS) },
             onNavigateToArtist = onNavigateToArtist
         )
         HomeAlbumSection(
             title = "Recent albums",
-            tracks = albumTracks.asReversed().take(5),
-            allTracks = tracks,
+            tracks = recentAlbums.take(5),
+            allTracks = allTracks,
             playerViewModel = playerViewModel,
             onSeeAll = { onNavigateToSection(HomeSectionType.RECENT_ALBUMS) },
             onNavigateToAlbum = onNavigateToAlbum
@@ -305,7 +311,7 @@ private fun HomeSectionHeader(title: String, onSeeAll: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 20.dp, top = 24.dp, end = 12.dp, bottom = 12.dp),
+            .padding(start = 20.dp, top = 16.dp, end = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -338,7 +344,7 @@ private fun SuggestionsSection(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 8.dp, bottom = 8.dp)
+            .padding(top = 8.dp, bottom = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -507,45 +513,52 @@ fun SmartShuffleCard(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun QuickAccessGrid(modifier: Modifier = Modifier) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+fun QuickAccessGrid(
+    modifier: Modifier = Modifier,
+    onNavigateToList: (String) -> Unit
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             QuickAccessCard(
-                title = "History",
-                icon = Icons.Filled.History,
-                modifier = Modifier.weight(1f)
+                title = "Favorites",
+                icon = Icons.Filled.Favorite,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigateToList("favorites") }
             )
             QuickAccessCard(
-                title = "Last added",
-                icon = Icons.Filled.PlaylistAdd,
-                modifier = Modifier.weight(1f)
+                title = "Most played",
+                icon = Icons.Filled.TrendingUp,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigateToList("most-played") }
             )
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             QuickAccessCard(
-                title = "Most played",
-                icon = Icons.Filled.TrendingUp,
-                modifier = Modifier.weight(1f)
+                title = "History",
+                icon = Icons.Filled.History,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigateToList("history") }
             )
             QuickAccessCard(
-                title = "Clusters",
-                icon = Icons.Filled.Widgets,
-                modifier = Modifier.weight(1f)
+                title = "Last added",
+                icon = Icons.Filled.PlaylistAdd,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigateToList("last-added") }
             )
         }
     }
 }
 
 @Composable
-fun QuickAccessCard(title: String, icon: ImageVector, modifier: Modifier = Modifier) {
+fun QuickAccessCard(title: String, icon: ImageVector, modifier: Modifier = Modifier, onClick: () -> Unit = {}) {
     Card(
-        modifier = modifier.height(64.dp),
+        modifier = modifier.height(48.dp).clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer
@@ -569,7 +582,8 @@ fun QuickAccessCard(title: String, icon: ImageVector, modifier: Modifier = Modif
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
-                softWrap = false
+                softWrap = false,
+                modifier = Modifier.weight(1f).padding(end = 8.dp)
             )
         }
     }
@@ -616,7 +630,8 @@ fun TrackSection(
                 onPlayNext = { playerViewModel.playNext(track) },
                 onAddToQueue = { playerViewModel.addToQueue(track) },
                 onGoToArtist = { onNavigateToArtist(track.artist) },
-                onGoToAlbum = { onNavigateToAlbum(track.album) }
+                onGoToAlbum = { onNavigateToAlbum(track.album) },
+                onAddToBlacklist = { playerViewModel.blacklistTrack(track) }
             )
         }
     }

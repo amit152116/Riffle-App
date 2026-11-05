@@ -43,11 +43,14 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import com.amit152116.riffle.ui.components.RiffleTopBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.amit152116.riffle.data.db.BrowseEntityType
+import com.amit152116.riffle.data.db.PlaybackSource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -72,7 +75,11 @@ fun ArtistDetailScreen(
 ) {
     val songs by libraryViewModel.songs.collectAsState()
     val artistTracks = songs.filter { it.artist.equals(artistName, ignoreCase = true) }
-    
+
+    LaunchedEffect(artistName) {
+        libraryViewModel.logBrowseEvent(BrowseEntityType.ARTIST, artistName)
+    }
+
     val albumGroups = artistTracks.groupBy { it.album }
     val heroArtworkUri = artistTracks.firstOrNull { it.artworkUri != null }?.artworkUri
     val artworkColors = rememberArtworkColors(heroArtworkUri)
@@ -183,7 +190,7 @@ fun ArtistDetailScreen(
                         OutlinedButton(
                             onClick = {
                                 if (artistTracks.isNotEmpty()) {
-                                    playerViewModel.playTrack(artistTracks.first(), artistTracks)
+                                    playerViewModel.playTrack(artistTracks.first(), artistTracks, PlaybackSource.ARTIST)
                                 }
                             },
                             modifier = Modifier
@@ -204,7 +211,7 @@ fun ArtistDetailScreen(
                             onClick = {
                                 if (artistTracks.isNotEmpty()) {
                                     val shuffled = artistTracks.shuffled()
-                                    playerViewModel.playTrack(shuffled.first(), shuffled)
+                                    playerViewModel.playTrack(shuffled.first(), shuffled, PlaybackSource.ARTIST)
                                     playerViewModel.toggleShuffle()
                                 }
                             },
@@ -347,14 +354,15 @@ fun ArtistDetailScreen(
                         track = track,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { playerViewModel.playTrack(track, artistTracks) }
+                            .clickable { playerViewModel.playTrack(track, artistTracks, PlaybackSource.ARTIST) }
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                         onPlayNext = { playerViewModel.playNext(track) },
                         onAddToQueue = { playerViewModel.addToQueue(track) },
                         onGoToAlbum = {
                             onNavigateToAlbum(track.album)
                         },
-                        onGoToArtist = { }
+                        onGoToArtist = { },
+                        onAddToBlacklist = { playerViewModel.blacklistTrack(track) }
                     )
                 }
             }

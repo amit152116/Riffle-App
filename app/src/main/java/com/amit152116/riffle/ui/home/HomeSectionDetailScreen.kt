@@ -20,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -27,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.amit152116.riffle.data.db.BrowseEntityType
 import com.amit152116.riffle.data.model.TrackUiModel
 import com.amit152116.riffle.ui.components.AsyncArtwork
 import com.amit152116.riffle.ui.components.RiffleTopBar
@@ -47,7 +49,14 @@ fun HomeSectionDetailScreen(
     onNavigateToArtist: (String) -> Unit,
     onNavigateToAlbum: (String) -> Unit
 ) {
-    val songs by libraryViewModel.songs.collectAsState()
+    val topArtistTracks by libraryViewModel.topArtistTracks.collectAsState()
+    val topAlbumTracks by libraryViewModel.topAlbumTracks.collectAsState()
+    val recentTracks by libraryViewModel.recentTracks.collectAsState()
+
+    LaunchedEffect(type) {
+        libraryViewModel.logBrowseEvent(BrowseEntityType.HOME_SECTION, type)
+    }
+
     val isArtistSection = type == HomeSectionType.TOP_ARTISTS ||
         type == HomeSectionType.RECENT_ARTISTS
     val title = when (type) {
@@ -57,19 +66,13 @@ fun HomeSectionDetailScreen(
         else -> "Recent albums"
     }
 
-    val items = if (isArtistSection) {
-        songs.groupBy { it.artist }
-            .entries
-            .sortedByDescending { it.value.size }
-            .map { it.value.first() }
-    } else {
-        songs.groupBy { it.album }
-            .entries
-            .sortedByDescending { it.value.size }
-            .map { it.value.first() }
-    }.let { grouped ->
-        if (type.startsWith("recent")) grouped.asReversed() else grouped
-    }
+    val items = when (type) {
+        HomeSectionType.TOP_ARTISTS -> topArtistTracks
+        HomeSectionType.TOP_ALBUMS -> topAlbumTracks
+        HomeSectionType.RECENT_ARTISTS -> recentTracks.groupBy { it.artist }.map { it.value.first() }
+        else -> recentTracks.groupBy { it.album }.map { it.value.first() }
+    }.take(50)
+
     val gridState = rememberLazyGridState()
 
     Scaffold(

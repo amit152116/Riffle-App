@@ -15,8 +15,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -29,6 +31,7 @@ import androidx.compose.foundation.combinedClickable
 import com.amit152116.riffle.ui.player.PlayerViewModel
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
@@ -38,6 +41,8 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -45,10 +50,12 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,7 +68,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -70,10 +76,14 @@ import com.amit152116.riffle.R
 import com.amit152116.riffle.data.model.GridStyle
 import androidx.compose.runtime.collectAsState
 import androidx.compose.material3.CircularProgressIndicator
+import com.amit152116.riffle.ui.components.AddToPlaylistSheet
 import com.amit152116.riffle.ui.components.GridStyleTile
 import com.amit152116.riffle.ui.components.TrackRow
 import com.amit152116.riffle.ui.components.RiffleTopBar
 import com.amit152116.riffle.ui.components.AlphabetScrollbar
+import com.amit152116.riffle.ui.components.AsyncArtwork
+import com.amit152116.riffle.ui.playlist.PlaylistViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,15 +92,31 @@ fun LibraryCatalogScreen(
     playerViewModel: PlayerViewModel,
     onNavigateToArtist: (String) -> Unit = {},
     onNavigateToAlbum: (String) -> Unit = {},
-    onNavigateToSearch: () -> Unit = {}
+    onNavigateToSearch: () -> Unit = {},
+    onOpenPlaylist: (Long) -> Unit = {}
 ) {
     var selectedTabIndex by remember { mutableStateOf(0) } // Default to Songs
     var selectedTrackIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var selectionMenuExpanded by remember { mutableStateOf(false) }
+    var showBulkAddToPlaylist by remember { mutableStateOf(false) }
+    val playlistViewModel: PlaylistViewModel = viewModel()
     val songs by libraryViewModel.songs.collectAsState()
+    val isScanningLibrary by libraryViewModel.isScanning.collectAsState()
+    val lastScanResult by libraryViewModel.lastScanResult.collectAsState()
     val context = LocalContext.current
+
+    LaunchedEffect(lastScanResult) {
+        lastScanResult?.let { result ->
+            Toast.makeText(
+                context,
+                "Scanned ${result.scanned} tracks" +
+                    if (result.failed > 0) ", ${result.failed} failed" else "",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
     val allSongsSelected = songs.isNotEmpty() && selectedTrackIds.size == songs.size
-    val tabs = listOf("Songs", "Artists", "Albums", "Genres", "Clusters")
+    val tabs = listOf("Songs", "Artists", "Albums", "Genres", "Clusters", "Playlists")
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val pagerScope = rememberCoroutineScope()
 
@@ -183,11 +209,7 @@ fun LibraryCatalogScreen(
                                 DropdownMenuItem(
                                     text = { Text("Add to playlist") },
                                     onClick = {
-                                        Toast.makeText(
-                                            context,
-                                            "Playlist support coming soon",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
+                                        showBulkAddToPlaylist = true
                                         selectionMenuExpanded = false
                                     }
                                 )
@@ -210,6 +232,16 @@ fun LibraryCatalogScreen(
                 RiffleTopBar(
                     title = "Library",
                     actions = {
+                        IconButton(
+                            onClick = { libraryViewModel.scanLibrary() },
+                            enabled = !isScanningLibrary
+                        ) {
+                            if (isScanningLibrary) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                            } else {
+                                Icon(Icons.Filled.Sync, contentDescription = "Scan library")
+                            }
+                        }
                         IconButton(onClick = onNavigateToSearch) {
                             Icon(Icons.Filled.Search, contentDescription = "Search")
                         }
@@ -284,11 +316,23 @@ fun LibraryCatalogScreen(
                     )
                     1 -> ArtistsContent(viewModel = libraryViewModel, onNavigateToArtist = onNavigateToArtist)
                     2 -> AlbumsContent(viewModel = libraryViewModel, onNavigateToAlbum = onNavigateToAlbum)
-                    3 -> GenresContent()
+                    3 -> GenresContent(viewModel = libraryViewModel)
                     4 -> ClustersContent()
+                    5 -> PlaylistsContent(viewModel = playlistViewModel, onOpenPlaylist = onOpenPlaylist)
                 }
             }
         }
+    }
+
+    if (showBulkAddToPlaylist) {
+        AddToPlaylistSheet(
+            tracks = songs.filter { it.id in selectedTrackIds },
+            viewModel = playlistViewModel,
+            onDismiss = {
+                showBulkAddToPlaylist = false
+                selectedTrackIds = emptySet()
+            }
+        )
     }
 }
 
@@ -399,6 +443,7 @@ fun SongsContent(
                         onAddToQueue = { playerViewModel.addToQueue(track) },
                         onGoToArtist = { onNavigateToArtist(track.artist) },
                         onGoToAlbum = { onNavigateToAlbum(track.album) },
+                        onAddToBlacklist = { playerViewModel.blacklistTrack(track) },
                         selectionMode = selectedTrackIds.isNotEmpty(),
                         selected = track.id in selectedTrackIds,
                         onSelectionToggle = { onToggleTrackSelection(track.id) }
@@ -508,15 +553,9 @@ fun AlbumsContent(viewModel: LibraryViewModel, onNavigateToAlbum: (String) -> Un
 }
 
 @Composable
-fun GenresContent() {
-    val genres = listOf(
-        GenreItem("Electronic", "1,234 tracks"),
-        GenreItem("Rock", "892 tracks"),
-        GenreItem("Jazz", "456 tracks"),
-        GenreItem("Ambient", "321 tracks"),
-        GenreItem("Hip Hop", "287 tracks"),
-        GenreItem("Classical", "243 tracks")
-    )
+fun GenresContent(viewModel: LibraryViewModel) {
+    val genreModels by viewModel.genres.collectAsState()
+    val genres = genreModels.map { GenreItem(it.name, "${it.trackCount} tracks") }
 
     val gridState = rememberLazyGridState()
     LazyVerticalGrid(
@@ -542,13 +581,16 @@ fun GenreCard(genre: GenreItem) {
             .aspectRatio(1.3f)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            Image(
-                painter = painterResource(id = R.mipmap.default_track),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+            // R.mipmap.default_track is an adaptive-icon mipmap - painterResource()
+            // can't load it directly ("Only VectorDrawables and rasterized asset
+            // types are supported"). AsyncArtwork already routes the same resource
+            // through Coil for its null-uri fallback, which decodes it fine.
+            AsyncArtwork(
+                uri = null,
+                modifier = Modifier.fillMaxSize(),
+                shape = RoundedCornerShape(0.dp)
             )
-            
+
             // Gradient Overlay
             Box(
                 modifier = Modifier
@@ -608,6 +650,81 @@ fun ClustersContent() {
         gridItems(clusters) { cluster ->
             GenreCard(cluster) // Reusing GenreCard for visual consistency
         }
+    }
+}
+
+@Composable
+fun PlaylistsContent(viewModel: PlaylistViewModel, onOpenPlaylist: (Long) -> Unit) {
+    val playlists by viewModel.playlists.collectAsState()
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var newName by remember { mutableStateOf("") }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (playlists.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No playlists yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            LazyColumn(contentPadding = PaddingValues(bottom = 80.dp)) {
+                items(playlists) { playlist ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onOpenPlaylist(playlist.id) }
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Filled.QueueMusic,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(40.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(
+                            text = playlist.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+
+        IconButton(
+            onClick = { showCreateDialog = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(20.dp)
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = "New playlist")
+        }
+    }
+
+    if (showCreateDialog) {
+        AlertDialog(
+            onDismissRequest = { showCreateDialog = false },
+            title = { Text("New playlist") },
+            text = {
+                OutlinedTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    placeholder = { Text("Playlist name") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.createPlaylist(newName)
+                    newName = ""
+                    showCreateDialog = false
+                }) { Text("Create") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateDialog = false }) { Text("Cancel") }
+            }
+        )
     }
 }
 

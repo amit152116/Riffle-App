@@ -83,12 +83,56 @@ import com.amit152116.riffle.ui.theme.RiffleTheme
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.amit152116.riffle.ui.player.PlayerViewModel
 import com.amit152116.riffle.ui.player.PlayerScreen
+import com.amit152116.riffle.ui.list.TrackListScreen
+import com.amit152116.riffle.ui.list.TrackListViewModel
+import com.amit152116.riffle.ui.playlist.PlaylistDetailScreen
+import com.amit152116.riffle.ui.playlist.PlaylistViewModel
+import android.app.Application
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     data object Home : Screen("home", "Home", Icons.Filled.Home)
     data object Library : Screen("library", "Library", Icons.Filled.LibraryMusic)
     data object Shuffle : Screen("shuffle", "Shuffle", Icons.Filled.Shuffle)
     data object Insights : Screen("insights", "Insights", Icons.Filled.Analytics)
+}
+
+/**
+ * Routes reached by navigation rather than the bottom bar - no title/icon,
+ * so these don't fit Screen. route is the pattern passed to composable();
+ * createRoute() is what navigate() calls actually build, so the encoding
+ * (or lack of it, for section - matches the pre-existing behavior) lives in
+ * exactly one place instead of being retyped at every call site.
+ */
+sealed class DetailRoute(val route: String) {
+    data object Search : DetailRoute("search")
+
+    data object HomeSectionDetail : DetailRoute("home-section/{section}") {
+        const val ARG_SECTION = "section"
+        fun createRoute(section: String) = "home-section/$section"
+    }
+
+    data object Artist : DetailRoute("artist/{artistName}") {
+        const val ARG_ARTIST_NAME = "artistName"
+        fun createRoute(artistName: String) = "artist/${Uri.encode(artistName)}"
+    }
+
+    data object Album : DetailRoute("album/{albumName}") {
+        const val ARG_ALBUM_NAME = "albumName"
+        fun createRoute(albumName: String) = "album/${Uri.encode(albumName)}"
+    }
+
+    data object DuplicateReview : DetailRoute("duplicate-review")
+    data object AudioFeatures : DetailRoute("audio-features")
+
+    data object TrackList : DetailRoute("track-list/{listType}") {
+        const val ARG_LIST_TYPE = "listType"
+        fun createRoute(listType: String) = "track-list/${Uri.encode(listType)}"
+    }
+
+    data object PlaylistDetail : DetailRoute("playlist/{playlistId}") {
+        const val ARG_PLAYLIST_ID = "playlistId"
+        fun createRoute(playlistId: Long) = "playlist/$playlistId"
+    }
 }
 
 val bottomNavItems = listOf(
@@ -124,7 +168,7 @@ class MainActivity : ComponentActivity() {
                 ) { granted ->
                     hasMediaPermission = granted
                     if (granted) {
-                        libraryViewModel.loadSongs()
+                        libraryViewModel.scanLibrary()
                     } else {
                         permanentlyDenied = !shouldShowRequestPermissionRationale(MediaPermission.readAudio)
                     }
@@ -132,7 +176,10 @@ class MainActivity : ComponentActivity() {
 
                 LaunchedEffect(Unit) {
                     if (hasMediaPermission) {
-                        libraryViewModel.loadSongs()
+                        // songs/albums/artists/genres are backed by a Room Flow (see
+                        // LibraryViewModel.init) and update on their own as this lands -
+                        // no separate "reload" call needed once it completes.
+                        libraryViewModel.scanLibrary()
                     } else {
                         permissionLauncher.launch(MediaPermission.readAudio)
                     }
@@ -252,32 +299,35 @@ class MainActivity : ComponentActivity() {
                                 libraryViewModel = libraryViewModel,
                                 onNavigateToSettings = { isSettingsOpen = true },
                                 onNavigateToSection = { section ->
-                                    navController.navigate("home-section/$section")
+                                    navController.navigate(DetailRoute.HomeSectionDetail.createRoute(section))
                                 },
                                 onNavigateToArtist = { artistName ->
-                                    navController.navigate("artist/${Uri.encode(artistName)}")
+                                    navController.navigate(DetailRoute.Artist.createRoute(artistName))
                                 },
                                 onNavigateToAlbum = { albumName ->
-                                    navController.navigate("album/${Uri.encode(albumName)}")
+                                    navController.navigate(DetailRoute.Album.createRoute(albumName))
                                 },
                                 onNavigateToSearch = {
-                                    navController.navigate("search")
+                                    navController.navigate(DetailRoute.Search.route)
+                                },
+                                onNavigateToList = { listType ->
+                                    navController.navigate(DetailRoute.TrackList.createRoute(listType))
                                 }
                             )
                         }
                         composable(
-                            "home-section/{section}",
-                            arguments = listOf(navArgument("section") { type = NavType.StringType })
+                            DetailRoute.HomeSectionDetail.route,
+                            arguments = listOf(navArgument(DetailRoute.HomeSectionDetail.ARG_SECTION) { type = NavType.StringType })
                         ) { backStackEntry ->
                             HomeSectionDetailScreen(
-                                type = backStackEntry.arguments?.getString("section") ?: "",
+                                type = backStackEntry.arguments?.getString(DetailRoute.HomeSectionDetail.ARG_SECTION) ?: "",
                                 libraryViewModel = libraryViewModel,
                                 onBack = { navController.popBackStack() },
                                 onNavigateToArtist = { artistName ->
-                                    navController.navigate("artist/${Uri.encode(artistName)}")
+                                    navController.navigate(DetailRoute.Artist.createRoute(artistName))
                                 },
                                 onNavigateToAlbum = { albumName ->
-                                    navController.navigate("album/${Uri.encode(albumName)}")
+                                    navController.navigate(DetailRoute.Album.createRoute(albumName))
                                 }
                             )
                         }
@@ -286,54 +336,57 @@ class MainActivity : ComponentActivity() {
                                 libraryViewModel = libraryViewModel,
                                 playerViewModel = playerViewModel,
                                 onNavigateToArtist = { artistName ->
-                                    navController.navigate("artist/${Uri.encode(artistName)}")
+                                    navController.navigate(DetailRoute.Artist.createRoute(artistName))
                                 },
                                 onNavigateToAlbum = { albumName ->
-                                    navController.navigate("album/${Uri.encode(albumName)}")
+                                    navController.navigate(DetailRoute.Album.createRoute(albumName))
                                 },
-                                onNavigateToSearch = { navController.navigate("search") }
+                                onNavigateToSearch = { navController.navigate(DetailRoute.Search.route) },
+                                onOpenPlaylist = { playlistId ->
+                                    navController.navigate(DetailRoute.PlaylistDetail.createRoute(playlistId))
+                                }
                             )
                         }
-                        composable("search") {
+                        composable(DetailRoute.Search.route) {
                             SearchScreen(
                                 libraryViewModel = libraryViewModel,
                                 playerViewModel = playerViewModel,
                                 onBack = { navController.popBackStack() },
                                 onNavigateToArtist = { artistName ->
-                                    navController.navigate("artist/${Uri.encode(artistName)}")
+                                    navController.navigate(DetailRoute.Artist.createRoute(artistName))
                                 },
                                 onNavigateToAlbum = { albumName ->
-                                    navController.navigate("album/${Uri.encode(albumName)}")
+                                    navController.navigate(DetailRoute.Album.createRoute(albumName))
                                 }
                             )
                         }
                         composable(
-                            "artist/{artistName}",
-                            arguments = listOf(navArgument("artistName") { type = NavType.StringType })
+                            DetailRoute.Artist.route,
+                            arguments = listOf(navArgument(DetailRoute.Artist.ARG_ARTIST_NAME) { type = NavType.StringType })
                         ) { backStackEntry ->
-                            val artistName = backStackEntry.arguments?.getString("artistName") ?: ""
+                            val artistName = backStackEntry.arguments?.getString(DetailRoute.Artist.ARG_ARTIST_NAME) ?: ""
                             ArtistDetailScreen(
                                 artistName = artistName,
                                 libraryViewModel = libraryViewModel,
                                 playerViewModel = playerViewModel,
                                 onBack = { navController.popBackStack() },
                                 onNavigateToAlbum = { albumName ->
-                                    navController.navigate("album/${Uri.encode(albumName)}")
+                                    navController.navigate(DetailRoute.Album.createRoute(albumName))
                                 }
                             )
                         }
                         composable(
-                            "album/{albumName}",
-                            arguments = listOf(navArgument("albumName") { type = NavType.StringType })
+                            DetailRoute.Album.route,
+                            arguments = listOf(navArgument(DetailRoute.Album.ARG_ALBUM_NAME) { type = NavType.StringType })
                         ) { backStackEntry ->
-                            val albumName = backStackEntry.arguments?.getString("albumName") ?: ""
+                            val albumName = backStackEntry.arguments?.getString(DetailRoute.Album.ARG_ALBUM_NAME) ?: ""
                             AlbumDetailScreen(
                                 albumName = albumName,
                                 libraryViewModel = libraryViewModel,
                                 playerViewModel = playerViewModel,
                                 onBack = { navController.popBackStack() },
                                 onNavigateToArtist = { artistName ->
-                                    navController.navigate("artist/${Uri.encode(artistName)}")
+                                    navController.navigate(DetailRoute.Artist.createRoute(artistName))
                                 }
                             )
                         }
@@ -342,14 +395,66 @@ class MainActivity : ComponentActivity() {
                         }
                         composable(Screen.Insights.route) {
                             InsightsScreen(
-                                onNavigateToDuplicates = { navController.navigate("duplicate-review") }
+                                onNavigateToDuplicates = { navController.navigate(DetailRoute.DuplicateReview.route) }
                             )
                         }
-                        composable("duplicate-review") {
+                        composable(DetailRoute.DuplicateReview.route) {
                             DuplicateReviewScreen(onBack = { navController.popBackStack() })
                         }
-                        composable("audio-features") {
+                        composable(DetailRoute.AudioFeatures.route) {
                             AudioFeaturesScreen(onBack = { navController.popBackStack() })
+                        }
+                        
+                        composable(
+                            route = DetailRoute.TrackList.route,
+                            arguments = listOf(navArgument(DetailRoute.TrackList.ARG_LIST_TYPE) { type = NavType.StringType })
+                        ) { backStackEntry ->
+                            val listType = backStackEntry.arguments?.getString(DetailRoute.TrackList.ARG_LIST_TYPE) ?: ""
+                            val title = when (listType) {
+                                "last-added" -> "Last Added"
+                                "favorites" -> "Favorites"
+                                "most-played" -> "Most Played"
+                                "history" -> "History"
+                                "blacklist" -> "Blacklisted Tracks"
+                                else -> "Tracks"
+                            }
+                            
+                            val trackListViewModel: TrackListViewModel = viewModel(
+                                factory = TrackListViewModel.Factory(
+                                    LocalContext.current.applicationContext as Application,
+                                    listType
+                                )
+                            )
+                            
+                            TrackListScreen(
+                                title = title,
+                                viewModel = trackListViewModel,
+                                playerViewModel = playerViewModel,
+                                onBack = { navController.popBackStack() },
+                                onNavigateToArtist = { artistName ->
+                                    navController.navigate(DetailRoute.Artist.createRoute(artistName))
+                                },
+                                onNavigateToAlbum = { albumName ->
+                                    navController.navigate(DetailRoute.Album.createRoute(albumName))
+                                },
+                                onRemoveFromBlacklist = if (listType == "blacklist") {
+                                    { track -> trackListViewModel.unblacklist(track) }
+                                } else null
+                            )
+                        }
+
+                        composable(
+                            route = DetailRoute.PlaylistDetail.route,
+                            arguments = listOf(navArgument(DetailRoute.PlaylistDetail.ARG_PLAYLIST_ID) { type = NavType.LongType })
+                        ) { backStackEntry ->
+                            val playlistId = backStackEntry.arguments?.getLong(DetailRoute.PlaylistDetail.ARG_PLAYLIST_ID) ?: 0L
+                            val playlistViewModel: PlaylistViewModel = viewModel()
+                            PlaylistDetailScreen(
+                                playlistId = playlistId,
+                                viewModel = playlistViewModel,
+                                playerViewModel = playerViewModel,
+                                onBack = { navController.popBackStack() }
+                            )
                         }
                     }
                     }
@@ -376,7 +481,11 @@ class MainActivity : ComponentActivity() {
                         SettingsScreen(
                             playerViewModel = playerViewModel,
                                 libraryViewModel = libraryViewModel,
-                            onBack = { isSettingsOpen = false }
+                            onBack = { isSettingsOpen = false },
+                            onNavigateToBlacklist = {
+                                isSettingsOpen = false
+                                navController.navigate(DetailRoute.TrackList.createRoute("blacklist"))
+                            }
                         )
                     }
                 }
