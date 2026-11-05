@@ -2,6 +2,9 @@
 #include <string>
 #include <vector>
 #include <mutex>
+#include <chrono>
+#include <atomic>
+#include <memory>
 #include <cmath>
 #include <android/log.h>
 
@@ -111,6 +114,11 @@ const std::string& extractionConfigHash() {
 // limiting + resampling to what Essentia's algorithms assume happens here,
 // via a real polyphase resampler (see speex_resampler/README.md) rather than
 // a hand-rolled FIR, quality 10 (speex's max, best passband/stopband).
+// Speex quality 6 instead of the maximum 10: measured on 16 real tracks (see docs), features drift by ~0.02% of
+// the between-track spread, BPM/key are unchanged, pairwise-similarity ranking is preserved (correlation 0.99999)
+// and fingerprints stay 99.5%+ bit-identical, for ~24% less analysis time (4x less on the resample stage itself).
+constexpr int kResampleQuality = 6;
+
 std::vector<Real> resampleToTargetRate(const std::vector<Real>& input, int fromRate) {
     if (fromRate == kExtractionConfig.sampleRate || input.empty()) {
         return input;
@@ -119,7 +127,7 @@ std::vector<Real> resampleToTargetRate(const std::vector<Real>& input, int fromR
     int err = RESAMPLER_ERR_SUCCESS;
     SpeexResamplerState* resampler = speex_resampler_init(
             /*nb_channels=*/1, static_cast<spx_uint32_t>(fromRate),
-            static_cast<spx_uint32_t>(kExtractionConfig.sampleRate), /*quality=*/10, &err);
+            static_cast<spx_uint32_t>(kExtractionConfig.sampleRate), /*quality=*/kResampleQuality, &err);
     if (resampler == nullptr || err != RESAMPLER_ERR_SUCCESS) {
         throw std::runtime_error("speex_resampler_init failed");
     }
@@ -140,11 +148,30 @@ std::vector<Real> resampleToTargetRate(const std::vector<Real>& input, int fromR
     return output;
 }
 
-std::mutex gEssentiaMutex;
+std::mutex gEssentiaMutex;        // serialises whole extractions while gSerialExtraction is set
+std::mutex gFactoryMutex;         // AlgorithmFactory::create touches a shared registry
+// Validated on device: concurrent extractions are bit-identical to serial ones (see PerformanceExperimentsTest.e4).
+std::atomic<bool> gSerialExtraction{false};
+
+// Essentia algorithm instances are independent once created; only the factory registry is shared.
+template <typename... Args>
+Algorithm* createAlgo(AlgorithmFactory& factory, const std::string& name, Args&&... args) {
+    std::lock_guard<std::mutex> lock(gFactoryMutex);
+    return factory.create(name, std::forward<Args>(args)...);
+}
 std::once_flag gInitFlag;
 
 void ensureEssentiaInitialized() {
-    std::call_once(gInitFlag, []() { essentia::init(); });
+    std::call_once(gInitFlag, []() {
+        essentia::init();
+        // Essentia's Logger queues messages in one global std::deque that is documented as not thread-safe
+        // (debugging.h). Concurrent extractions that hit a warning (e.g. the streaming network's buffer-state
+        // print) corrupted the heap and aborted the app. We never read Essentia's stderr output, so turn all
+        // levels off: Logger then returns before touching the shared queue.
+        essentia::infoLevelActive = false;
+        essentia::warningLevelActive = false;
+        essentia::errorLevelActive = false;
+    });
 }
 
 // mirrors features.py::_compute_energy
@@ -213,6 +240,94 @@ std::vector<int32_t> computeChromaprint(const std::vector<Real>& audio, int samp
     return result;
 }
 
+// Streaming counterpart of computeChromaprint(): identical int16 conversion, Chromaprint
+// algorithm and 44100 Hz target rate, but input arrives in chunks and is resampled by a
+// stateful speex resampler (same quality 10 as resampleToTargetRate). At 44100 Hz no
+// resampler is created, so the result equals the batch path exactly.
+struct FingerprintSession {
+    ChromaprintContext* chroma = nullptr;
+    SpeexResamplerState* resampler = nullptr; // null when the input is already at target rate
+    int fromRate = 0;
+    std::vector<Real> resampled;
+    std::vector<int16_t> pcm;
+    bool finished = false;
+
+    ~FingerprintSession() {
+        if (resampler != nullptr) speex_resampler_destroy(resampler);
+        if (chroma != nullptr) chromaprint_free(chroma);
+    }
+};
+
+void feedChromaprint(FingerprintSession& s, const Real* data, size_t n) {
+    if (n == 0) return;
+    s.pcm.resize(n);
+    for (size_t i = 0; i < n; ++i) {
+        float clamped = std::max(-1.0f, std::min(1.0f, data[i]));
+        s.pcm[i] = static_cast<int16_t>(clamped * 32767.0f);
+    }
+    if (chromaprint_feed(s.chroma, s.pcm.data(), static_cast<int>(n)) != 1) {
+        throw std::runtime_error("chromaprint_feed failed");
+    }
+}
+
+FingerprintSession* fingerprintBegin(int sampleRate) {
+    if (sampleRate <= 0) throw std::runtime_error("invalid sample rate");
+    auto session = std::make_unique<FingerprintSession>();
+    session->fromRate = sampleRate;
+    session->chroma = chromaprint_new(kFingerprintInternalAlgorithm);
+    if (session->chroma == nullptr) throw std::runtime_error("chromaprint_new failed");
+    if (chromaprint_start(session->chroma, kExtractionConfig.sampleRate, /*num_channels=*/1) != 1) {
+        throw std::runtime_error("chromaprint_start failed");
+    }
+    if (sampleRate != kExtractionConfig.sampleRate) {
+        int err = RESAMPLER_ERR_SUCCESS;
+        session->resampler = speex_resampler_init(
+                1, static_cast<spx_uint32_t>(sampleRate),
+                static_cast<spx_uint32_t>(kExtractionConfig.sampleRate), /*quality=*/kResampleQuality, &err);
+        if (session->resampler == nullptr || err != RESAMPLER_ERR_SUCCESS) {
+            throw std::runtime_error("speex_resampler_init failed");
+        }
+    }
+    return session.release();
+}
+
+void fingerprintFeed(FingerprintSession& s, const Real* data, size_t n) {
+    if (s.finished) throw std::runtime_error("fingerprint session already finished");
+    if (s.resampler == nullptr) {
+        feedChromaprint(s, data, n);
+        return;
+    }
+    size_t consumed = 0;
+    while (consumed < n) {
+        auto inLen = static_cast<spx_uint32_t>(n - consumed);
+        auto outCapacity = static_cast<spx_uint32_t>(
+                (static_cast<uint64_t>(inLen) * kExtractionConfig.sampleRate) / s.fromRate + 64);
+        s.resampled.resize(outCapacity);
+        spx_uint32_t outLen = outCapacity;
+        if (speex_resampler_process_float(s.resampler, 0, data + consumed, &inLen,
+                s.resampled.data(), &outLen) != RESAMPLER_ERR_SUCCESS) {
+            throw std::runtime_error("speex_resampler_process_float failed");
+        }
+        feedChromaprint(s, s.resampled.data(), outLen);
+        if (inLen == 0 && outLen == 0) break; // no progress possible; avoid spinning
+        consumed += inLen;
+    }
+}
+
+std::vector<int32_t> fingerprintFinish(FingerprintSession& s) {
+    if (s.finished) throw std::runtime_error("fingerprint session already finished");
+    s.finished = true;
+    if (chromaprint_finish(s.chroma) != 1) throw std::runtime_error("chromaprint_finish failed");
+    uint32_t* raw = nullptr;
+    int rawSize = 0;
+    if (chromaprint_get_raw_fingerprint(s.chroma, &raw, &rawSize) != 1) {
+        throw std::runtime_error("chromaprint_get_raw_fingerprint failed");
+    }
+    std::vector<int32_t> result(raw, raw + rawSize);
+    chromaprint_dealloc(raw);
+    return result;
+}
+
 struct ExtractedFeatures {
     float bpm = 0.0f;
     float bpmConfidence = 0.0f;
@@ -240,7 +355,29 @@ struct ExtractedFeatures {
 // returns one AudioFeatures object per native call). MonoLoader is replaced
 // by Kotlin's own decode (see EssentiaExtractor.kt) + resampleToTargetRate
 // above; every algorithm below assumes `sampleRate` (Essentia's Real).
-ExtractedFeatures runPipeline(const std::vector<Real>& rawAudio, int inputSampleRate) {
+// Per-stage wall-clock timings of the last runPipeline() on this thread (read via nativeLastStageTimings).
+thread_local std::string gLastStageTimings;
+
+struct StageTimer {
+    using Clock = std::chrono::steady_clock;
+    Clock::time_point last = Clock::now();
+    std::string prev = "resample";
+    std::string log;
+    void mark(const char* next) {
+        auto now = Clock::now();
+        log += prev + "=" + std::to_string(std::chrono::duration<double, std::milli>(now - last).count()) + "ms ";
+        prev = next;
+        last = now;
+    }
+    void finish() {
+        mark("end");
+        gLastStageTimings = log;
+    }
+};
+
+ExtractedFeatures runPipeline(const std::vector<Real>& rawAudio, int inputSampleRate,
+                              bool withFingerprint = true) {
+    StageTimer st;
     if (rawAudio.empty()) {
         throw std::runtime_error("empty audio buffer");
     }
@@ -257,9 +394,10 @@ ExtractedFeatures runPipeline(const std::vector<Real>& rawAudio, int inputSample
     result.mfccMean.assign(kExtractionConfig.mfccBands, 0.0f);
     result.configHash = extractionConfigHash();
 
+    st.mark("rhythm");
     // --- RhythmExtractor2013 (multifeature) -> bpm, confidence ---
     {
-        unique_ptr<Algorithm> rhythmExtractor(factory.create("RhythmExtractor2013",
+        unique_ptr<Algorithm> rhythmExtractor(createAlgo(factory, "RhythmExtractor2013",
                 "method", kExtractionConfig.rhythmMethod));
         Real bpm, confidence;
         std::vector<Real> ticks, estimates, bpmIntervals;
@@ -274,9 +412,10 @@ ExtractedFeatures runPipeline(const std::vector<Real>& rawAudio, int inputSample
         result.bpmConfidence = static_cast<float>(confidence);
     }
 
+    st.mark("key");
     // --- KeyExtractor -> key, scale, strength ---
     {
-        unique_ptr<Algorithm> keyExtractor(factory.create("KeyExtractor"));
+        unique_ptr<Algorithm> keyExtractor(createAlgo(factory, "KeyExtractor"));
         std::string key, scale;
         Real strength;
         keyExtractor->input("audio").set(audio);
@@ -289,16 +428,17 @@ ExtractedFeatures runPipeline(const std::vector<Real>& rawAudio, int inputSample
         result.keyStrength = static_cast<float>(strength);
     }
 
+    st.mark("loudness");
     // --- StereoMuxer(audio, audio) + LoudnessEBUR128 -> integrated LUFS ---
     {
-        unique_ptr<Algorithm> stereoMuxer(factory.create("StereoMuxer"));
+        unique_ptr<Algorithm> stereoMuxer(createAlgo(factory, "StereoMuxer"));
         std::vector<StereoSample> stereoAudio;
         stereoMuxer->input("left").set(audio);
         stereoMuxer->input("right").set(audio);
         stereoMuxer->output("audio").set(stereoAudio);
         stereoMuxer->compute();
 
-        unique_ptr<Algorithm> loudness(factory.create("LoudnessEBUR128",
+        unique_ptr<Algorithm> loudness(createAlgo(factory, "LoudnessEBUR128",
                 "sampleRate", static_cast<Real>(sampleRate)));
         std::vector<Real> momentary, shortTerm;
         Real integrated, loudnessRange;
@@ -311,9 +451,10 @@ ExtractedFeatures runPipeline(const std::vector<Real>& rawAudio, int inputSample
         result.loudnessLufs = static_cast<float>(integrated);
     }
 
+    st.mark("danceability");
     // --- Danceability ---
     {
-        unique_ptr<Algorithm> danceability(factory.create("Danceability"));
+        unique_ptr<Algorithm> danceability(createAlgo(factory, "Danceability"));
         Real dance;
         std::vector<Real> dfa;
         danceability->input("signal").set(audio);
@@ -323,9 +464,10 @@ ExtractedFeatures runPipeline(const std::vector<Real>& rawAudio, int inputSample
         result.danceability = static_cast<float>(dance);
     }
 
+    st.mark("energy");
     // --- Energy ---
     {
-        unique_ptr<Algorithm> energyAlgo(factory.create("Energy"));
+        unique_ptr<Algorithm> energyAlgo(createAlgo(factory, "Energy"));
         Real rawEnergy;
         energyAlgo->input("array").set(audio);
         energyAlgo->output("energy").set(rawEnergy);
@@ -333,9 +475,10 @@ ExtractedFeatures runPipeline(const std::vector<Real>& rawAudio, int inputSample
         result.energy = computeEnergy(static_cast<float>(rawEnergy), audio.size());
     }
 
+    st.mark("centroid");
     // --- SpectralCentroidTime ---
     {
-        unique_ptr<Algorithm> centroid(factory.create("SpectralCentroidTime"));
+        unique_ptr<Algorithm> centroid(createAlgo(factory, "SpectralCentroidTime"));
         Real sc;
         centroid->input("array").set(audio);
         centroid->output("centroid").set(sc);
@@ -343,9 +486,10 @@ ExtractedFeatures runPipeline(const std::vector<Real>& rawAudio, int inputSample
         result.spectralCentroid = static_cast<float>(sc);
     }
 
+    st.mark("onset");
     // --- OnsetRate ---
     {
-        unique_ptr<Algorithm> onsetRateAlgo(factory.create("OnsetRate"));
+        unique_ptr<Algorithm> onsetRateAlgo(createAlgo(factory, "OnsetRate"));
         std::vector<Real> onsets;
         Real onsetRate;
         onsetRateAlgo->input("signal").set(audio);
@@ -355,9 +499,10 @@ ExtractedFeatures runPipeline(const std::vector<Real>& rawAudio, int inputSample
         result.onsetRate = static_cast<float>(onsetRate);
     }
 
+    st.mark("dynComplexity");
     // --- DynamicComplexity ---
     {
-        unique_ptr<Algorithm> dynComplexity(factory.create("DynamicComplexity"));
+        unique_ptr<Algorithm> dynComplexity(createAlgo(factory, "DynamicComplexity"));
         Real dc, loudnessDb;
         dynComplexity->input("signal").set(audio);
         dynComplexity->output("dynamicComplexity").set(dc);
@@ -366,9 +511,10 @@ ExtractedFeatures runPipeline(const std::vector<Real>& rawAudio, int inputSample
         result.dynamicComplexity = static_cast<float>(dc);
     }
 
+    st.mark("zcr");
     // --- ZeroCrossingRate ---
     {
-        unique_ptr<Algorithm> zcrAlgo(factory.create("ZeroCrossingRate"));
+        unique_ptr<Algorithm> zcrAlgo(createAlgo(factory, "ZeroCrossingRate"));
         Real zcr;
         zcrAlgo->input("signal").set(audio);
         zcrAlgo->output("zeroCrossingRate").set(zcr);
@@ -376,16 +522,17 @@ ExtractedFeatures runPipeline(const std::vector<Real>& rawAudio, int inputSample
         result.zcr = static_cast<float>(zcr);
     }
 
+    st.mark("perFrame(mfcc+dissonance)");
     // --- Per-frame: Windowing -> Spectrum -> MFCC / SpectralPeaks -> Dissonance ---
     {
-        unique_ptr<Algorithm> frameCutter(factory.create("FrameCutter",
+        unique_ptr<Algorithm> frameCutter(createAlgo(factory, "FrameCutter",
                 "frameSize", kExtractionConfig.frameSize, "hopSize", kExtractionConfig.hopSize));
-        unique_ptr<Algorithm> windowing(factory.create("Windowing", "type", kExtractionConfig.windowType));
-        unique_ptr<Algorithm> spectrumAlgo(factory.create("Spectrum"));
-        unique_ptr<Algorithm> mfccAlgo(factory.create("MFCC",
+        unique_ptr<Algorithm> windowing(createAlgo(factory, "Windowing", "type", kExtractionConfig.windowType));
+        unique_ptr<Algorithm> spectrumAlgo(createAlgo(factory, "Spectrum"));
+        unique_ptr<Algorithm> mfccAlgo(createAlgo(factory, "MFCC",
                 "numberCoefficients", kExtractionConfig.mfccBands));
-        unique_ptr<Algorithm> spectralPeaks(factory.create("SpectralPeaks"));
-        unique_ptr<Algorithm> dissonanceAlgo(factory.create("Dissonance"));
+        unique_ptr<Algorithm> spectralPeaks(createAlgo(factory, "SpectralPeaks"));
+        unique_ptr<Algorithm> dissonanceAlgo(createAlgo(factory, "Dissonance"));
 
         std::vector<Real> frame, windowed, spectrum, mfccBands, mfccCoeffs, peakFreqs, peakMags;
 
@@ -446,21 +593,25 @@ ExtractedFeatures runPipeline(const std::vector<Real>& rawAudio, int inputSample
         }
     }
 
+    st.mark("chromaprint");
     // --- Chromaprint fingerprint ---
     // Kept independent of the algorithms above: in ../riffle, feature
     // extraction and fingerprinting are separate passes with separate
     // failure handling (a fingerprint failure never blocks audio_features
     // from being written, and vice versa). A failure here falls back to
     // "not computed" rather than aborting the whole extraction.
-    try {
-        result.fingerprint = computeChromaprint(audio, sampleRate);
-        result.fingerprintAlgorithm = kFingerprintCliAlgorithm;
-    } catch (const std::exception& e) {
-        LOGE("Chromaprint fingerprinting failed: %s", e.what());
-        result.fingerprint.clear();
-        result.fingerprintAlgorithm = -1;
+    if (withFingerprint) {
+        try {
+            result.fingerprint = computeChromaprint(audio, sampleRate);
+            result.fingerprintAlgorithm = kFingerprintCliAlgorithm;
+        } catch (const std::exception& e) {
+            LOGE("Chromaprint fingerprinting failed: %s", e.what());
+            result.fingerprint.clear();
+            result.fingerprintAlgorithm = -1;
+        }
     }
 
+    st.finish();
     return result;
 }
 
@@ -537,14 +688,16 @@ Java_com_amit152116_riffle_dsp_EssentiaExtractor_nativeExtract(
         JNIEnv* env,
         jobject /* this */,
         jfloatArray samples,
-        jint sampleRate) {
+        jint sampleRate,
+        jboolean withFingerprint) {
 
-    std::lock_guard<std::mutex> lock(gEssentiaMutex);
+    std::unique_lock<std::mutex> lock(gEssentiaMutex, std::defer_lock);
+    if (gSerialExtraction.load()) lock.lock();
     ensureEssentiaInitialized();
 
     try {
         std::vector<Real> audio = readFloatArray(env, samples);
-        ExtractedFeatures features = runPipeline(audio, sampleRate);
+        ExtractedFeatures features = runPipeline(audio, sampleRate, withFingerprint == JNI_TRUE);
         return buildAudioFeaturesObject(env, features);
     } catch (const std::exception& e) {
         LOGE("Feature extraction failed: %s", e.what());
@@ -555,6 +708,53 @@ Java_com_amit152116_riffle_dsp_EssentiaExtractor_nativeExtract(
         throwRuntimeException(env, "unknown error during Essentia feature extraction");
         return nullptr;
     }
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_amit152116_riffle_dsp_EssentiaExtractor_nativeFingerprintBegin(JNIEnv* env, jobject, jint sampleRate) {
+    try { return reinterpret_cast<jlong>(fingerprintBegin(sampleRate)); }
+    catch (const std::exception& e) { throwRuntimeException(env, e.what()); return 0; }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_amit152116_riffle_dsp_EssentiaExtractor_nativeFingerprintFeed(
+        JNIEnv* env, jobject, jlong handle, jfloatArray samples, jint count) {
+    try {
+        auto* s = reinterpret_cast<FingerprintSession*>(handle);
+        if (s == nullptr || count < 0 || count > env->GetArrayLength(samples)) {
+            throw std::runtime_error("invalid fingerprint feed arguments");
+        }
+        std::vector<Real> chunk(static_cast<size_t>(count));
+        if (count > 0) env->GetFloatArrayRegion(samples, 0, count, reinterpret_cast<jfloat*>(chunk.data()));
+        fingerprintFeed(*s, chunk.data(), chunk.size());
+    } catch (const std::exception& e) { throwRuntimeException(env, e.what()); }
+}
+
+extern "C" JNIEXPORT jintArray JNICALL
+Java_com_amit152116_riffle_dsp_EssentiaExtractor_nativeFingerprintFinish(JNIEnv* env, jobject, jlong handle) {
+    std::unique_ptr<FingerprintSession> s(reinterpret_cast<FingerprintSession*>(handle)); // always freed
+    try {
+        if (!s) throw std::runtime_error("null fingerprint session");
+        std::vector<int32_t> fp = fingerprintFinish(*s);
+        jintArray out = env->NewIntArray(static_cast<jsize>(fp.size()));
+        if (!fp.empty()) env->SetIntArrayRegion(out, 0, static_cast<jsize>(fp.size()), reinterpret_cast<const jint*>(fp.data()));
+        return out;
+    } catch (const std::exception& e) { throwRuntimeException(env, e.what()); return nullptr; }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_amit152116_riffle_dsp_EssentiaExtractor_nativeFingerprintAbort(JNIEnv*, jobject, jlong handle) {
+    delete reinterpret_cast<FingerprintSession*>(handle); // deleting a null handle is a no-op
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_amit152116_riffle_dsp_EssentiaExtractor_nativeSetSerialExtraction(JNIEnv*, jobject, jboolean serial) {
+    gSerialExtraction.store(serial == JNI_TRUE);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_amit152116_riffle_dsp_EssentiaExtractor_nativeLastStageTimings(JNIEnv* env, jobject) {
+    return env->NewStringUTF(gLastStageTimings.c_str());
 }
 
 extern "C" JNIEXPORT jstring JNICALL

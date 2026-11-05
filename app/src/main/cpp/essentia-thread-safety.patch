@@ -1,0 +1,25 @@
+diff --git a/src/essentia/scheduler/network.cpp b/src/essentia/scheduler/network.cpp
+index 7046731d..e8f92436 100644
+--- a/src/essentia/scheduler/network.cpp
++++ b/src/essentia/scheduler/network.cpp
+@@ -967,11 +967,17 @@ void Network::printBufferFillState() {
+ }
+ 
+ void printNetworkBufferFillState() {
+-  if (!Network::lastCreated) {
++  // Debug-only. Network::lastCreated is a plain global written by every Network constructor/destructor, so with
++  // several threads running networks it can be null or dangling here (the old code dereferenced it right after
++  // warning about it). Compiled out entirely when DEBUGGING_ENABLED is 0.
++#if DEBUGGING_ENABLED
++  Network* last = Network::lastCreated;
++  if (!last) {
+     E_WARNING("No network created, or last created network has been deleted...");
++    return;
+   }
+-
+-  Network::lastCreated->printBufferFillState();
++  last->printBufferFillState();
++#endif
+ }
+ 
+ bool isExcludedFromInfo(const string& algoname) {
