@@ -32,6 +32,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -56,6 +57,8 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.media3.common.Player
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -80,21 +83,28 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.amit152116.riffle.data.db.PlaybackSource
 import com.amit152116.riffle.data.model.TrackUiModel
 import com.amit152116.riffle.data.color.ArtworkColorExtractor
 import com.amit152116.riffle.ui.components.AsyncArtwork
 import com.amit152116.riffle.ui.components.TrackRow
+import kotlinx.coroutines.delay
 import java.util.Locale
+import kotlin.math.abs
 
 enum class PlayerViewMode { ARTWORK, LYRICS }
 
@@ -111,7 +121,7 @@ fun PlayerScreen(viewModel: PlayerViewModel, onClose: () -> Unit = {}) {
     val sleepTimerRemainingMs by viewModel.sleepTimerRemainingMs.collectAsState()
     val sleepTimerEndOfTrack by viewModel.sleepTimerEndOfTrack.collectAsState()
 
-    var isFavorite by remember { mutableStateOf(false) }
+    val isFavorite by viewModel.isFavorite.collectAsState()
     var viewMode by remember { mutableStateOf(PlayerViewMode.ARTWORK) }
     var showQueueSheet by remember { mutableStateOf(false) }
     var showSleepTimerDialog by remember { mutableStateOf(false) }
@@ -219,16 +229,64 @@ fun PlayerScreen(viewModel: PlayerViewModel, onClose: () -> Unit = {}) {
             ) {
                 when (viewMode) {
                     PlayerViewMode.ARTWORK -> {
+                        var seekAccumulator by remember { mutableStateOf(0) }
+                        var isRightSide by remember { mutableStateOf(true) }
+                        var lastSeekTapTime by remember { mutableStateOf(0L) }
+
+                        val currentSeekAccumulator by rememberUpdatedState(seekAccumulator)
+                        val currentIsRightSide by rememberUpdatedState(isRightSide)
+                        val currentLastSeekTapTime by rememberUpdatedState(lastSeekTapTime)
+
+                        LaunchedEffect(seekAccumulator, lastSeekTapTime) {
+                            if (seekAccumulator != 0) {
+                                delay(1000)
+                                seekAccumulator = 0
+                            }
+                        }
+
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .scale(artworkScale),
+                                .scale(artworkScale)
+                                .pointerInput(Unit) {
+                                    detectTapGestures(
+                                        onTap = { offset ->
+                                            val now = System.currentTimeMillis()
+                                            val isRight = offset.x > size.width / 2
+                                            if (now - currentLastSeekTapTime < 500 && currentIsRightSide == isRight && currentSeekAccumulator != 0) {
+                                                val delta = if (isRight) 5 else -5
+                                                seekAccumulator = currentSeekAccumulator + delta
+                                                viewModel.seekBy(delta * 1000L)
+                                                lastSeekTapTime = now
+                                            }
+                                        },
+                                        onDoubleTap = { offset ->
+                                            val now = System.currentTimeMillis()
+                                            val isRight = offset.x > size.width / 2
+                                            val delta = if (isRight) 5 else -5
+                                            
+                                            if (currentIsRightSide == isRight && currentSeekAccumulator != 0 && now - currentLastSeekTapTime < 500) {
+                                                seekAccumulator = currentSeekAccumulator + delta
+                                            } else {
+                                                isRightSide = isRight
+                                                seekAccumulator = delta
+                                            }
+                                            viewModel.seekBy(delta * 1000L)
+                                            lastSeekTapTime = now
+                                        }
+                                    )
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             AsyncArtwork(
                                 uri = currentTrack?.artworkUri,
                                 modifier = Modifier.fillMaxSize(),
                                 shape = RoundedCornerShape(24.dp)
+                            )
+
+                            SeekOverlay(
+                                seekAccumulator = seekAccumulator,
+                                isRightSide = isRightSide
                             )
                         }
                     }
@@ -266,7 +324,7 @@ fun PlayerScreen(viewModel: PlayerViewModel, onClose: () -> Unit = {}) {
                     )
                 }
                 
-                IconButton(onClick = { isFavorite = !isFavorite }) {
+                IconButton(onClick = { viewModel.toggleFavorite() }) {
                     Icon(
                         imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                         contentDescription = "Favorite",
@@ -607,6 +665,47 @@ fun SyncedLyricsView(track: TrackUiModel?, currentPositionMs: Long) {
 }
 
 @Composable
+fun BoxScope.SeekOverlay(seekAccumulator: Int, isRightSide: Boolean) {
+    AnimatedVisibility(
+        visible = seekAccumulator != 0,
+        enter = fadeIn(),
+        exit = fadeOut(),
+        modifier = Modifier.align(if (isRightSide) Alignment.CenterEnd else Alignment.CenterStart)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(0.5f)
+                .background(
+                    Brush.horizontalGradient(
+                        colors = if (isRightSide) {
+                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.4f))
+                        } else {
+                            listOf(Color.Black.copy(alpha = 0.4f), Color.Transparent)
+                        }
+                    )
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = if (isRightSide) Icons.Filled.FastForward else Icons.Filled.FastRewind,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(36.dp)
+                )
+                Text(
+                    text = "${abs(seekAccumulator)}s",
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun QueueSheetContent(viewModel: PlayerViewModel) {
     val playlist by viewModel.currentPlaylist.collectAsState()
     val currentTrack by viewModel.currentTrack.collectAsState()
@@ -657,7 +756,10 @@ fun QueueSheetContent(viewModel: PlayerViewModel) {
                             .clickable {
                                 viewModel.playTrack(currentTrack!!, viewModel.currentPlaylist.value)
                             }
-                            .padding(8.dp)
+                            .padding(8.dp),
+                        onPlayNext = { viewModel.playNext(currentTrack!!) },
+                        onAddToQueue = { viewModel.addToQueue(currentTrack!!) },
+                        onAddToBlacklist = { viewModel.blacklistTrack(currentTrack!!) }
                     )
                 }
             }
@@ -682,7 +784,7 @@ fun QueueSheetContent(viewModel: PlayerViewModel) {
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
                             .clickable {
-                                viewModel.playTrack(track, viewModel.currentPlaylist.value)
+                                viewModel.playTrack(track, viewModel.currentPlaylist.value, PlaybackSource.QUEUE)
                             }
                             .padding(8.dp),
                         leadingText = "${index + 1}",

@@ -37,7 +37,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -60,7 +59,7 @@ fun MiniPlayer(viewModel: PlayerViewModel, modifier: Modifier = Modifier, onClic
     val isPlaying by viewModel.isPlaying.collectAsState()
     val currentPosition by viewModel.currentPosition.collectAsState()
     val duration by viewModel.duration.collectAsState()
-    var isFavorite by remember(currentTrack?.id) { mutableStateOf(false) }
+    val isFavorite by viewModel.isFavorite.collectAsState()
     val swipeOffset = remember { Animatable(0f) }
     val swipeScope = rememberCoroutineScope()
     var titleWidthPx by remember { mutableIntStateOf(0) }
@@ -174,7 +173,7 @@ fun MiniPlayer(viewModel: PlayerViewModel, modifier: Modifier = Modifier, onClic
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
-                    onClick = { isFavorite = !isFavorite },
+                    onClick = { viewModel.toggleFavorite() },
                     modifier = Modifier.size(44.dp)
                 ) {
                     Icon(
