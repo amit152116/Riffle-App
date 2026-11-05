@@ -1,10 +1,13 @@
 package com.amit152116.riffle.data
 
 import android.content.Context
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import com.amit152116.riffle.data.db.RiffleDatabase
 import com.amit152116.riffle.data.db.analysis.AnalysisRepository
 import com.amit152116.riffle.data.db.analysis.AnalysisResultWriter
 import com.amit152116.riffle.data.db.cluster.ClusterRepository
+import com.amit152116.riffle.data.db.cluster.IntelligenceRepository
 import com.amit152116.riffle.data.db.dedup.DedupRepository
 import com.amit152116.riffle.data.db.fingerprint.FingerprintRepository
 import com.amit152116.riffle.data.db.library.LibraryRepository
@@ -12,8 +15,14 @@ import com.amit152116.riffle.data.db.library.LibraryScanner
 import com.amit152116.riffle.data.db.musicbrainz.MusicBrainzRepository
 import com.amit152116.riffle.data.db.playback.PlaybackRepository
 import com.amit152116.riffle.data.db.playback.TelemetryRepository
+import com.amit152116.riffle.data.db.query.ShuffleRepository
+import com.amit152116.riffle.data.db.query.TrackFilterRepository
 import com.amit152116.riffle.data.prefs.PreferencesManager
 import com.amit152116.riffle.dsp.EssentiaExtractor
+import com.amit152116.riffle.ui.components.SongDetailViewModel
+import com.amit152116.riffle.ui.library.LibraryViewModel
+import com.amit152116.riffle.ui.player.PlayerViewModel
+import com.amit152116.riffle.ui.playlist.PlaylistViewModel
 
 /**
  * Sole owner of every repository, the scanner, and prefs - the single place
@@ -38,6 +47,20 @@ class AppContainer private constructor(context: Context) {
     val clusterRepository: ClusterRepository by lazy { ClusterRepository(database.clusterDao()) }
     val playbackRepository: PlaybackRepository by lazy { PlaybackRepository(database.playbackDao()) }
     val telemetryRepository: TelemetryRepository by lazy { TelemetryRepository(database.telemetryDao()) }
+    val intelligenceRepository: IntelligenceRepository by lazy {
+        IntelligenceRepository(database.analysisDao(), database.clusterDao())
+    }
+    val trackFilterRepository: TrackFilterRepository by lazy {
+        TrackFilterRepository(database.trackFilterDao(), database.clusterDao())
+    }
+    val shuffleRepository: ShuffleRepository by lazy {
+        ShuffleRepository(
+            trackFilterRepository,
+            intelligenceRepository,
+            database.clusterDao(),
+            dedupRepository
+        )
+    }
 
     // essentiaExtractor/analysisResultWriter aren't their own AppContainer properties: neither
     // has any consumer besides this constructor call, so there's nothing to share across
@@ -65,8 +88,49 @@ class AppContainer private constructor(context: Context) {
     suspend fun resolveTrackId(mediaStoreId: Long): Long? =
         libraryRepository.getTrackByMediaStoreId(mediaStoreId)?.id
 
+    val libraryViewModelFactory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            if (modelClass.isAssignableFrom(LibraryViewModel::class.java)) {
+                return LibraryViewModel(
+                    context.applicationContext,
+                    this@AppContainer
+                ) as T
+            }
+            throw IllegalArgumentException("Unknown ViewModel class")
+        }
+    }
+
+    val playerViewModelFactory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            if (modelClass.isAssignableFrom(PlayerViewModel::class.java)) {
+                return PlayerViewModel(
+                    context.applicationContext,
+                    this@AppContainer
+                ) as T
+            }
+            throw IllegalArgumentException("Unknown ViewModel class")
+        }
+    }
+
+    val playlistViewModelFactory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            if (modelClass.isAssignableFrom(PlaylistViewModel::class.java)) {
+                return PlaylistViewModel(
+                    this@AppContainer
+                ) as T
+            }
+            throw IllegalArgumentException("Unknown ViewModel class")
+        }
+    }
+
+    val songDetailViewModelFactory: ViewModelProvider.Factory = SongDetailViewModel.Factory(this)
+
     companion object {
-        @Volatile private var instance: AppContainer? = null
+        @Volatile
+        private var instance: AppContainer? = null
 
         fun getInstance(context: Context): AppContainer =
             instance ?: synchronized(this) {
