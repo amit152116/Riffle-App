@@ -1,11 +1,7 @@
 package com.amit152116.riffle.dsp
 
 import android.content.Context
-import android.media.MediaCodec
-import android.media.MediaExtractor
-import android.media.MediaFormat
 import android.net.Uri
-import java.nio.ByteOrder
 
 /**
  * Data class representing the audio features extracted by Essentia,
@@ -61,15 +57,34 @@ class EssentiaExtractor {
         /** Bumped manually whenever the native build changes (algorithm set, config). */
         const val EXTRACTOR_VERSION = "essentia-lightweight-1"
         const val ANALYZER = "chromaprint"
+        const val FINGERPRINT_CLI_ALGORITHM = 2
 
         init {
             System.loadLibrary("riffle_dsp")
         }
     }
 
-    private external fun nativeExtract(samples: FloatArray, sampleRate: Int): AudioFeatures
+    private external fun nativeExtract(samples: FloatArray, sampleRate: Int, withFingerprint: Boolean): AudioFeatures
+
+    private external fun nativeFingerprintBegin(sampleRate: Int): Long
+    private external fun nativeFingerprintFeed(handle: Long, samples: FloatArray, count: Int)
+    private external fun nativeFingerprintFinish(handle: Long): IntArray
+    private external fun nativeFingerprintAbort(handle: Long)
+
+    internal fun fingerprintBegin(sampleRate: Int): Long = nativeFingerprintBegin(sampleRate)
+    internal fun fingerprintFeed(handle: Long, samples: FloatArray, count: Int) = nativeFingerprintFeed(handle, samples, count)
+    internal fun fingerprintFinish(handle: Long): IntArray = nativeFingerprintFinish(handle)
+    internal fun fingerprintAbort(handle: Long) = nativeFingerprintAbort(handle)
 
     private external fun nativeConfigHash(): String
+    private external fun nativeLastStageTimings(): String
+    private external fun nativeSetSerialExtraction(serial: Boolean)
+
+    /** Experiment hook: false lets several extract() calls run concurrently (only factory creation stays locked). */
+    internal fun setSerialExtraction(serial: Boolean) = nativeSetSerialExtraction(serial)
+
+    /** Per-stage timings of this thread's last extract() (diagnostics/benchmarks). */
+    fun lastStageTimings(): String = nativeLastStageTimings()
 
     /**
      * Test-only: exposes the native speex resampler directly (see speex_resampler/README.md).
@@ -87,7 +102,8 @@ class EssentiaExtractor {
      * ../riffle/riffle/features.py's fixed config. `samples` must already be mono, normalized
      * to [-1, 1].
      */
-    fun extract(samples: FloatArray, sampleRate: Int): AudioFeatures = nativeExtract(samples, sampleRate)
+    fun extract(samples: FloatArray, sampleRate: Int, withFingerprint: Boolean = true): AudioFeatures =
+        nativeExtract(samples, sampleRate, withFingerprint)
 
     /**
      * The current native build's extraction config hash, without decoding any audio -
@@ -128,156 +144,12 @@ class EssentiaExtractor {
 }
 
 /**
- * Decodes an audio file to mono float PCM using platform decoders, at whatever sample rate
- * the codec reports. Replaces Essentia's MonoLoader, which needs ffmpeg (unavailable on
- * Android) — see AGENTS.md's "hard, unresolved part" note on audio decode. Resampling to
- * Essentia's target rate happens in native code (see EssentiaWrapper.cpp), not here.
+ * Decodes an audio file to mono float PCM at the codec's own sample rate (see [PcmStreamDecoder]).
+ * Resampling to Essentia's target rate happens in native code (see EssentiaWrapper.cpp), not here.
  */
-internal fun decodeToMonoPcm(path: String): Pair<FloatArray, Int> {
-    val extractor = MediaExtractor()
-    try {
-        extractor.setDataSource(path)
-    } catch (e: Exception) {
-        extractor.release()
-        throw e
-    }
-    return decodeToMonoPcm(extractor)
-}
+internal fun decodeToMonoPcm(path: String): Pair<FloatArray, Int> =
+    PcmStreamDecoder.open(path).use { decodeAllMono(it) }
 
 /** [uri] variant of [decodeToMonoPcm] — see [EssentiaExtractor.extractContent]'s kdoc. */
-internal fun decodeToMonoPcm(context: Context, uri: Uri): Pair<FloatArray, Int> {
-    val extractor = MediaExtractor()
-    try {
-        extractor.setDataSource(context, uri, null)
-    } catch (e: Exception) {
-        extractor.release()
-        throw e
-    }
-    return decodeToMonoPcm(extractor)
-}
-
-/**
- * Drains an already-configured [extractor] (data source already set by either
- * overload above) to mono float PCM. Always releases [extractor], including on
- * every failure path below.
- */
-private fun decodeToMonoPcm(extractor: MediaExtractor): Pair<FloatArray, Int> {
-    try {
-        var trackIndex = -1
-        var inputFormat: MediaFormat? = null
-        for (i in 0 until extractor.trackCount) {
-            val format = extractor.getTrackFormat(i)
-            val mime = format.getString(MediaFormat.KEY_MIME) ?: continue
-            if (mime.startsWith("audio/")) {
-                trackIndex = i
-                inputFormat = format
-                break
-            }
-        }
-        require(trackIndex >= 0 && inputFormat != null) { "No audio track found" }
-        extractor.selectTrack(trackIndex)
-
-        val mime = inputFormat.getString(MediaFormat.KEY_MIME)!!
-        val codec = MediaCodec.createDecoderByType(mime)
-        try {
-            codec.configure(inputFormat, null, null, 0)
-            codec.start()
-
-            // Real values come from INFO_OUTPUT_FORMAT_CHANGED, not the input format:
-            // formats like HE-AAC report half the true sample rate on the input side.
-            var sampleRate = inputFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
-            var channelCount =
-                if (inputFormat.containsKey(MediaFormat.KEY_CHANNEL_COUNT))
-                    inputFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-                else 1
-
-            // Grows in place instead of collecting a ShortArray per output buffer plus a
-            // separate mono array plus copyOf(): a 10-minute 48kHz stereo track would
-            // otherwise hold ~450MB across those redundant copies at once.
-            var mono = FloatArray(1 shl 16)
-            var monoSize = 0
-            fun ensureCapacity(extra: Int) {
-                if (monoSize + extra > mono.size) {
-                    mono = mono.copyOf(maxOf(mono.size * 2, monoSize + extra))
-                }
-            }
-
-            val bufferInfo = MediaCodec.BufferInfo()
-            var sawInputEos = false
-            var sawOutputEos = false
-
-            while (!sawOutputEos) {
-                if (!sawInputEos) {
-                    val inputBufferIndex = codec.dequeueInputBuffer(10_000)
-                    if (inputBufferIndex >= 0) {
-                        val inputBuffer = codec.getInputBuffer(inputBufferIndex)!!
-                        val sampleSize = extractor.readSampleData(inputBuffer, 0)
-                        if (sampleSize < 0) {
-                            codec.queueInputBuffer(
-                                inputBufferIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM
-                            )
-                            sawInputEos = true
-                        } else {
-                            codec.queueInputBuffer(
-                                inputBufferIndex, 0, sampleSize, extractor.sampleTime, 0
-                            )
-                            extractor.advance()
-                        }
-                    }
-                }
-
-                val outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 10_000)
-                when {
-                    outputBufferIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-                        val newFormat = codec.outputFormat
-                        sampleRate = newFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
-                        channelCount = newFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-                        if (newFormat.containsKey(MediaFormat.KEY_PCM_ENCODING)) {
-                            val encoding = newFormat.getInteger(MediaFormat.KEY_PCM_ENCODING)
-                            require(encoding == android.media.AudioFormat.ENCODING_PCM_16BIT) {
-                                "Unsupported decoder PCM encoding $encoding (only 16-bit PCM " +
-                                    "is handled; reinterpreting other encodings as 16-bit " +
-                                    "would silently corrupt the samples)"
-                            }
-                        }
-                    }
-
-                    outputBufferIndex == MediaCodec.INFO_TRY_AGAIN_LATER -> {
-                        // no output ready yet, loop again
-                    }
-
-                    outputBufferIndex >= 0 -> {
-                        if (bufferInfo.size > 0) {
-                            val outputBuffer = codec.getOutputBuffer(outputBufferIndex)!!
-                            outputBuffer.order(ByteOrder.LITTLE_ENDIAN)
-                            outputBuffer.position(bufferInfo.offset)
-                            outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
-                            val shortBuffer = outputBuffer.asShortBuffer()
-
-                            val frames = shortBuffer.remaining() / channelCount
-                            ensureCapacity(frames)
-                            val frame = ShortArray(channelCount)
-                            repeat(frames) {
-                                shortBuffer.get(frame)
-                                var sum = 0
-                                for (c in 0 until channelCount) sum += frame[c]
-                                mono[monoSize++] = (sum.toFloat() / channelCount) / 32768.0f
-                            }
-                        }
-                        codec.releaseOutputBuffer(outputBufferIndex, false)
-                        if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
-                            sawOutputEos = true
-                        }
-                    }
-                }
-            }
-
-            return mono.copyOf(monoSize) to sampleRate
-        } finally {
-            codec.stop()
-            codec.release()
-        }
-    } finally {
-        extractor.release()
-    }
-}
+internal fun decodeToMonoPcm(context: Context, uri: Uri): Pair<FloatArray, Int> =
+    PcmStreamDecoder.open(context, uri).use { decodeAllMono(it) }
