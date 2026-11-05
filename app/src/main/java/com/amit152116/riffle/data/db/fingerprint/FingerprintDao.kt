@@ -26,6 +26,9 @@ interface FingerprintDao {
     @Query("SELECT * FROM Fingerprint WHERE id = :id")
     suspend fun getFingerprintById(id: Long): Fingerprint?
 
+    @Query("SELECT * FROM Fingerprint WHERE audioContentId = :audioContentId")
+    suspend fun getFingerprintByAudioContentId(audioContentId: Long): Fingerprint?
+
     @Query("SELECT * FROM RunTrack WHERE runId = :runId AND trackId = :trackId")
     suspend fun getRunTrack(runId: Long, trackId: Long): RunTrack?
 

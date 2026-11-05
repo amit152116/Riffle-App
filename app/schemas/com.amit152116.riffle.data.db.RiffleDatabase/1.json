@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "8fe9f1fd8d21f9d3c17a930728e5d82c",
+    "identityHash": "63e37d45324a33268e87af7a2e6de974",
     "entities": [
       {
         "tableName": "AudioContent",
@@ -112,7 +112,7 @@
       },
       {
         "tableName": "Track",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `path` TEXT NOT NULL, `size` INTEGER, `mtime` REAL, `dev` INTEGER, `inode` INTEGER, `nlink` INTEGER, `audioContentId` INTEGER, `bitrate` INTEGER, `tagTitle` TEXT, `tagArtist` TEXT, `tagAlbum` TEXT, `tagGenre` TEXT, `tagCompleteness` INTEGER NOT NULL, `lastSeenScanId` INTEGER, `present` INTEGER NOT NULL, `absentReason` TEXT, `scannedAt` INTEGER, FOREIGN KEY(`audioContentId`) REFERENCES `AudioContent`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`lastSeenScanId`) REFERENCES `ScanRun`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `path` TEXT NOT NULL, `size` INTEGER, `mtime` REAL, `audioContentId` INTEGER, `mediaStoreId` INTEGER, `albumId` INTEGER, `durationMs` INTEGER, `bitrate` INTEGER, `tagTitle` TEXT, `tagArtist` TEXT, `tagAlbum` TEXT, `tagGenre` TEXT, `tagCompleteness` INTEGER NOT NULL, `lastSeenScanId` INTEGER, `present` INTEGER NOT NULL, `absentReason` TEXT, `scannedAt` INTEGER, FOREIGN KEY(`audioContentId`) REFERENCES `AudioContent`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`lastSeenScanId`) REFERENCES `ScanRun`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
         "fields": [
           {
             "fieldPath": "id",
@@ -137,23 +137,23 @@
             "affinity": "REAL"
           },
           {
-            "fieldPath": "dev",
-            "columnName": "dev",
-            "affinity": "INTEGER"
-          },
-          {
-            "fieldPath": "inode",
-            "columnName": "inode",
-            "affinity": "INTEGER"
-          },
-          {
-            "fieldPath": "nlink",
-            "columnName": "nlink",
-            "affinity": "INTEGER"
-          },
-          {
             "fieldPath": "audioContentId",
             "columnName": "audioContentId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "mediaStoreId",
+            "columnName": "mediaStoreId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "albumId",
+            "columnName": "albumId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "durationMs",
+            "columnName": "durationMs",
             "affinity": "INTEGER"
           },
           {
@@ -253,14 +253,13 @@
             "createSql": "CREATE INDEX IF NOT EXISTS `index_Track_present` ON `${TABLE_NAME}` (`present`)"
           },
           {
-            "name": "index_Track_dev_inode",
+            "name": "index_Track_mediaStoreId",
             "unique": false,
             "columnNames": [
-              "dev",
-              "inode"
+              "mediaStoreId"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_Track_dev_inode` ON `${TABLE_NAME}` (`dev`, `inode`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Track_mediaStoreId` ON `${TABLE_NAME}` (`mediaStoreId`)"
           }
         ],
         "foreignKeys": [
@@ -355,7 +354,7 @@
       },
       {
         "tableName": "Fingerprint",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `audioContentId` INTEGER NOT NULL, `analyzer` TEXT NOT NULL, `analyzerVersion` TEXT NOT NULL, `configHash` TEXT NOT NULL, `purpose` TEXT NOT NULL, `algorithm` INTEGER, `fpRaw` BLOB NOT NULL, `fpLength` INTEGER NOT NULL, `computedAt` INTEGER, FOREIGN KEY(`audioContentId`) REFERENCES `AudioContent`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `audioContentId` INTEGER NOT NULL, `analyzer` TEXT NOT NULL, `analyzerVersion` TEXT NOT NULL, `configHash` TEXT NOT NULL, `purpose` TEXT NOT NULL, `algorithm` INTEGER, `fingerprintRaw` BLOB NOT NULL, `fingerprintLength` INTEGER NOT NULL, `computedAt` INTEGER, FOREIGN KEY(`audioContentId`) REFERENCES `AudioContent`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
         "fields": [
           {
             "fieldPath": "id",
@@ -399,14 +398,14 @@
             "affinity": "INTEGER"
           },
           {
-            "fieldPath": "fpRaw",
-            "columnName": "fpRaw",
+            "fieldPath": "fingerprintRaw",
+            "columnName": "fingerprintRaw",
             "affinity": "BLOB",
             "notNull": true
           },
           {
-            "fieldPath": "fpLength",
-            "columnName": "fpLength",
+            "fieldPath": "fingerprintLength",
+            "columnName": "fingerprintLength",
             "affinity": "INTEGER",
             "notNull": true
           },
@@ -1882,8 +1881,8 @@
         ]
       },
       {
-        "tableName": "PlayHistory",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `trackId` INTEGER NOT NULL, `playedAt` INTEGER NOT NULL, `durationPlayedMs` INTEGER, FOREIGN KEY(`trackId`) REFERENCES `Track`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
+        "tableName": "PlaybackEvent",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `trackId` INTEGER, `audioContentId` INTEGER, `startedAt` INTEGER NOT NULL, `endedAt` INTEGER, `lastCheckpointAt` INTEGER, `startPositionMs` INTEGER NOT NULL, `lastPositionMs` INTEGER NOT NULL, `endPositionMs` INTEGER, `durationMsSnapshot` INTEGER, `source` TEXT NOT NULL, `endReason` TEXT, `tzOffsetMinutes` INTEGER NOT NULL, `outputRoute` TEXT, `startVolume` REAL, `originKind` TEXT, `originId` INTEGER, FOREIGN KEY(`trackId`) REFERENCES `Track`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
         "fields": [
           {
             "fieldPath": "id",
@@ -1894,18 +1893,86 @@
           {
             "fieldPath": "trackId",
             "columnName": "trackId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "audioContentId",
+            "columnName": "audioContentId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "startedAt",
+            "columnName": "startedAt",
             "affinity": "INTEGER",
             "notNull": true
           },
           {
-            "fieldPath": "playedAt",
-            "columnName": "playedAt",
+            "fieldPath": "endedAt",
+            "columnName": "endedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastCheckpointAt",
+            "columnName": "lastCheckpointAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "startPositionMs",
+            "columnName": "startPositionMs",
             "affinity": "INTEGER",
             "notNull": true
           },
           {
-            "fieldPath": "durationPlayedMs",
-            "columnName": "durationPlayedMs",
+            "fieldPath": "lastPositionMs",
+            "columnName": "lastPositionMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endPositionMs",
+            "columnName": "endPositionMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "durationMsSnapshot",
+            "columnName": "durationMsSnapshot",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endReason",
+            "columnName": "endReason",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "tzOffsetMinutes",
+            "columnName": "tzOffsetMinutes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "outputRoute",
+            "columnName": "outputRoute",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "startVolume",
+            "columnName": "startVolume",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "originKind",
+            "columnName": "originKind",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "originId",
+            "columnName": "originId",
             "affinity": "INTEGER"
           }
         ],
@@ -1917,28 +1984,182 @@
         },
         "indices": [
           {
-            "name": "index_PlayHistory_trackId",
+            "name": "index_PlaybackEvent_trackId",
             "unique": false,
             "columnNames": [
               "trackId"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_PlayHistory_trackId` ON `${TABLE_NAME}` (`trackId`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_PlaybackEvent_trackId` ON `${TABLE_NAME}` (`trackId`)"
           },
           {
-            "name": "index_PlayHistory_playedAt",
+            "name": "index_PlaybackEvent_audioContentId",
             "unique": false,
             "columnNames": [
-              "playedAt"
+              "audioContentId"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_PlayHistory_playedAt` ON `${TABLE_NAME}` (`playedAt`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_PlaybackEvent_audioContentId` ON `${TABLE_NAME}` (`audioContentId`)"
+          },
+          {
+            "name": "index_PlaybackEvent_startedAt",
+            "unique": false,
+            "columnNames": [
+              "startedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_PlaybackEvent_startedAt` ON `${TABLE_NAME}` (`startedAt`)"
           }
         ],
         "foreignKeys": [
           {
             "table": "Track",
-            "onDelete": "NO ACTION",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "trackId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "PlaybackAction",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `eventId` INTEGER NOT NULL, `type` TEXT NOT NULL, `atMs` INTEGER NOT NULL, `positionMs` INTEGER NOT NULL, `toPositionMs` INTEGER, `reason` TEXT NOT NULL, FOREIGN KEY(`eventId`) REFERENCES `PlaybackEvent`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eventId",
+            "columnName": "eventId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "atMs",
+            "columnName": "atMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "positionMs",
+            "columnName": "positionMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "toPositionMs",
+            "columnName": "toPositionMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "reason",
+            "columnName": "reason",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_PlaybackAction_eventId",
+            "unique": false,
+            "columnNames": [
+              "eventId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_PlaybackAction_eventId` ON `${TABLE_NAME}` (`eventId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "PlaybackEvent",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "eventId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "TrackInteraction",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `trackId` INTEGER, `timestamp` INTEGER NOT NULL, `type` TEXT NOT NULL, FOREIGN KEY(`trackId`) REFERENCES `Track`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trackId",
+            "columnName": "trackId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_TrackInteraction_trackId",
+            "unique": false,
+            "columnNames": [
+              "trackId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_TrackInteraction_trackId` ON `${TABLE_NAME}` (`trackId`)"
+          },
+          {
+            "name": "index_TrackInteraction_timestamp",
+            "unique": false,
+            "columnNames": [
+              "timestamp"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_TrackInteraction_timestamp` ON `${TABLE_NAME}` (`timestamp`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "Track",
+            "onDelete": "SET NULL",
             "onUpdate": "NO ACTION",
             "columns": [
               "trackId"
@@ -2132,11 +2353,637 @@
             ]
           }
         ]
+      },
+      {
+        "tableName": "QueueEvent",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `trackId` INTEGER, `queuedAt` INTEGER NOT NULL, `action` TEXT NOT NULL, `fromPosition` INTEGER, `toPosition` INTEGER, `origin` TEXT NOT NULL, `originKind` TEXT, `originId` INTEGER, FOREIGN KEY(`trackId`) REFERENCES `Track`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trackId",
+            "columnName": "trackId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "queuedAt",
+            "columnName": "queuedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "action",
+            "columnName": "action",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fromPosition",
+            "columnName": "fromPosition",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "toPosition",
+            "columnName": "toPosition",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "origin",
+            "columnName": "origin",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originKind",
+            "columnName": "originKind",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "originId",
+            "columnName": "originId",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_QueueEvent_trackId",
+            "unique": false,
+            "columnNames": [
+              "trackId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_QueueEvent_trackId` ON `${TABLE_NAME}` (`trackId`)"
+          },
+          {
+            "name": "index_QueueEvent_queuedAt",
+            "unique": false,
+            "columnNames": [
+              "queuedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_QueueEvent_queuedAt` ON `${TABLE_NAME}` (`queuedAt`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "Track",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "trackId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "SearchEvent",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `timestamp` INTEGER NOT NULL, `query` TEXT NOT NULL, `resultCount` INTEGER NOT NULL, `selectedType` TEXT NOT NULL, `selectedKey` TEXT, `selectedTrackId` INTEGER, FOREIGN KEY(`selectedTrackId`) REFERENCES `Track`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "query",
+            "columnName": "query",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "resultCount",
+            "columnName": "resultCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "selectedType",
+            "columnName": "selectedType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "selectedKey",
+            "columnName": "selectedKey",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "selectedTrackId",
+            "columnName": "selectedTrackId",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_SearchEvent_selectedTrackId",
+            "unique": false,
+            "columnNames": [
+              "selectedTrackId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_SearchEvent_selectedTrackId` ON `${TABLE_NAME}` (`selectedTrackId`)"
+          },
+          {
+            "name": "index_SearchEvent_timestamp",
+            "unique": false,
+            "columnNames": [
+              "timestamp"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_SearchEvent_timestamp` ON `${TABLE_NAME}` (`timestamp`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "Track",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "selectedTrackId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "BrowseEvent",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `timestamp` INTEGER NOT NULL, `entityType` TEXT NOT NULL, `entityKey` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "entityType",
+            "columnName": "entityType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "entityKey",
+            "columnName": "entityKey",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_BrowseEvent_timestamp",
+            "unique": false,
+            "columnNames": [
+              "timestamp"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_BrowseEvent_timestamp` ON `${TABLE_NAME}` (`timestamp`)"
+          }
+        ]
+      },
+      {
+        "tableName": "ShuffleSession",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `startedAt` INTEGER NOT NULL, `mode` TEXT NOT NULL, `sourceTrackId` INTEGER, `configHash` TEXT NOT NULL, FOREIGN KEY(`sourceTrackId`) REFERENCES `Track`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAt",
+            "columnName": "startedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mode",
+            "columnName": "mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceTrackId",
+            "columnName": "sourceTrackId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "configHash",
+            "columnName": "configHash",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_ShuffleSession_sourceTrackId",
+            "unique": false,
+            "columnNames": [
+              "sourceTrackId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ShuffleSession_sourceTrackId` ON `${TABLE_NAME}` (`sourceTrackId`)"
+          },
+          {
+            "name": "index_ShuffleSession_startedAt",
+            "unique": false,
+            "columnNames": [
+              "startedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ShuffleSession_startedAt` ON `${TABLE_NAME}` (`startedAt`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "Track",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sourceTrackId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "ShuffleDecision",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sessionId` INTEGER NOT NULL, `trackId` INTEGER, `position` INTEGER NOT NULL, `score` REAL NOT NULL, `reason` TEXT NOT NULL, FOREIGN KEY(`sessionId`) REFERENCES `ShuffleSession`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`trackId`) REFERENCES `Track`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionId",
+            "columnName": "sessionId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trackId",
+            "columnName": "trackId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "score",
+            "columnName": "score",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reason",
+            "columnName": "reason",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_ShuffleDecision_sessionId",
+            "unique": false,
+            "columnNames": [
+              "sessionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ShuffleDecision_sessionId` ON `${TABLE_NAME}` (`sessionId`)"
+          },
+          {
+            "name": "index_ShuffleDecision_trackId",
+            "unique": false,
+            "columnNames": [
+              "trackId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ShuffleDecision_trackId` ON `${TABLE_NAME}` (`trackId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "ShuffleSession",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sessionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "Track",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "trackId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "RecommendationSlate",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `generatedAt` INTEGER NOT NULL, `surface` TEXT NOT NULL, `sourceTrackId` INTEGER, `algorithm` TEXT NOT NULL, `algorithmVersion` TEXT NOT NULL, `configHash` TEXT NOT NULL, FOREIGN KEY(`sourceTrackId`) REFERENCES `Track`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "generatedAt",
+            "columnName": "generatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "surface",
+            "columnName": "surface",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceTrackId",
+            "columnName": "sourceTrackId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "algorithm",
+            "columnName": "algorithm",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "algorithmVersion",
+            "columnName": "algorithmVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "configHash",
+            "columnName": "configHash",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_RecommendationSlate_sourceTrackId",
+            "unique": false,
+            "columnNames": [
+              "sourceTrackId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_RecommendationSlate_sourceTrackId` ON `${TABLE_NAME}` (`sourceTrackId`)"
+          },
+          {
+            "name": "index_RecommendationSlate_generatedAt",
+            "unique": false,
+            "columnNames": [
+              "generatedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_RecommendationSlate_generatedAt` ON `${TABLE_NAME}` (`generatedAt`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "Track",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sourceTrackId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "RecommendationImpression",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `slateId` INTEGER NOT NULL, `trackId` INTEGER, `position` INTEGER NOT NULL, `score` REAL, `reason` TEXT, FOREIGN KEY(`slateId`) REFERENCES `RecommendationSlate`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`trackId`) REFERENCES `Track`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slateId",
+            "columnName": "slateId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trackId",
+            "columnName": "trackId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "score",
+            "columnName": "score",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "reason",
+            "columnName": "reason",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_RecommendationImpression_slateId",
+            "unique": false,
+            "columnNames": [
+              "slateId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_RecommendationImpression_slateId` ON `${TABLE_NAME}` (`slateId`)"
+          },
+          {
+            "name": "index_RecommendationImpression_trackId",
+            "unique": false,
+            "columnNames": [
+              "trackId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_RecommendationImpression_trackId` ON `${TABLE_NAME}` (`trackId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "RecommendationSlate",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "slateId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "Track",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "trackId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "RecommendationAction",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `impressionId` INTEGER NOT NULL, `type` TEXT NOT NULL, `at` INTEGER NOT NULL, FOREIGN KEY(`impressionId`) REFERENCES `RecommendationImpression`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "impressionId",
+            "columnName": "impressionId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "at",
+            "columnName": "at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_RecommendationAction_impressionId",
+            "unique": false,
+            "columnNames": [
+              "impressionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_RecommendationAction_impressionId` ON `${TABLE_NAME}` (`impressionId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "RecommendationImpression",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "impressionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8fe9f1fd8d21f9d3c17a930728e5d82c')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '63e37d45324a33268e87af7a2e6de974')"
     ]
   }
 }
