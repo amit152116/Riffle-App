@@ -35,15 +35,14 @@ class ClusterRepositoryTest {
     }
 
     @Test
-    fun insertTrackSimilarity_selfLoop_isRejected() = runBlocking {
+    fun insertContentSimilarity_selfLoop_isRejected() = runBlocking {
         val contentId = libraryDao.insertAudioContent(TestFixtures.audioContent())
-        val trackId = libraryDao.insertTrack(TestFixtures.track(audioContentId = contentId))
 
-        val inserted = repository.insertTrackSimilarity(
-            TestFixtures.trackSimilarity(trackId = trackId, neighborId = trackId)
+        val inserted = repository.insertContentSimilarity(
+            TestFixtures.contentSimilarity(audioContentId = contentId, neighborContentId = contentId)
         )
 
         assertEquals(false, inserted)
-        assertNull(repository.getTrackSimilarity(trackId, trackId))
+        assertNull(repository.getContentSimilarity(contentId, contentId))
     }
 }

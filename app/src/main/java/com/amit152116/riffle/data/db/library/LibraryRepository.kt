@@ -24,6 +24,8 @@ class LibraryRepository(private val dao: LibraryDao) {
     suspend fun getAnyPresentTrackPath(audioContentId: Long) = dao.getAnyPresentTrackPath(audioContentId)
     suspend fun getAudioContentNeedingAnalysis(extractorVersion: String, configHash: String) =
         dao.getAudioContentNeedingAnalysis(extractorVersion, configHash)
+    suspend fun getPendingAnalysis(extractorVersion: String, configHash: String, maxAttempts: Int, limit: Int) =
+        dao.getPendingAnalysis(extractorVersion, configHash, maxAttempts, limit)
     suspend fun getOrCreateAudioContentIdAndAssign(track: Track, audioContent: AudioContent) =
         dao.getOrCreateAudioContentIdAndAssign(track, audioContent)
     fun getPresentTracksFlow(minDurationMs: Long = 0L) = dao.getPresentTracksFlow(minDurationMs)

@@ -25,8 +25,8 @@ data class Fingerprint(
     val configHash: String,
     val purpose: FingerprintPurpose,
     val algorithm: Int?,
-    val fpRaw: ByteArray,
-    val fpLength: Int,
+    val fingerprintRaw: ByteArray,
+    val fingerprintLength: Int,
     val computedAt: Long?
 )
 

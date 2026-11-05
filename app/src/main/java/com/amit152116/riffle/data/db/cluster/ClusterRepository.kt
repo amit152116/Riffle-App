@@ -7,15 +7,16 @@ class ClusterRepository(private val dao: ClusterDao) {
         dao.insertClusterAssignment(clusterAssignment)
     suspend fun getClusterAssignment(runId: Long, audioContentId: Long) =
         dao.getClusterAssignment(runId, audioContentId)
-    suspend fun getTrackSimilarity(trackId: Long, neighborId: Long) = dao.getTrackSimilarity(trackId, neighborId)
+    suspend fun getContentSimilarity(audioContentId: Long, neighborContentId: Long) =
+        dao.getContentSimilarity(audioContentId, neighborContentId)
 
     /**
-     * Returns false without inserting when trackId == neighborId - a track
-     * is never meaningfully "similar to itself".
+     * Returns false without inserting when both ids are the same recording - a recording is never
+     * meaningfully "similar to itself".
      */
-    suspend fun insertTrackSimilarity(trackSimilarity: TrackSimilarity): Boolean {
-        if (trackSimilarity.trackId == trackSimilarity.neighborId) return false
-        dao.insertTrackSimilarity(trackSimilarity)
+    suspend fun insertContentSimilarity(row: ContentSimilarity): Boolean {
+        if (row.audioContentId == row.neighborContentId) return false
+        dao.insertContentSimilarity(row)
         return true
     }
 }

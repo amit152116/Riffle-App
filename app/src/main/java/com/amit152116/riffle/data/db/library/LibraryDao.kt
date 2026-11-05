@@ -9,8 +9,6 @@ import androidx.room.Update
 import com.amit152116.riffle.data.db.AbsentReason
 import com.amit152116.riffle.data.db.HashMethod
 import com.amit152116.riffle.data.db.RunStatus
-import com.amit152116.riffle.data.db.analysis.AudioFeatures
-import com.amit152116.riffle.data.db.fingerprint.Fingerprint
 import kotlinx.coroutines.flow.Flow
 
 // Room projections for aggregate play-count queries - grouping by artist/album
@@ -20,6 +18,9 @@ import kotlinx.coroutines.flow.Flow
 data class ArtistPlayCount(val artist: String, val playCount: Int)
 
 data class AlbumPlayCount(val album: String, val playCount: Int)
+
+/** A recording still awaiting analysis, with the duration used to plan and budget it. */
+data class PendingAnalysisRow(val audioContentId: Long, val durationSec: Double?)
 
 @Dao
 interface LibraryDao {
@@ -63,7 +64,7 @@ interface LibraryDao {
     // mirroring ../riffle/riffle's "never destructive by default" rule.
     @Query(
         "UPDATE Track SET present = 0, absentReason = :reason " +
-            "WHERE present = 1 AND (lastSeenScanId IS NULL OR lastSeenScanId != :scanId)"
+                "WHERE present = 1 AND (lastSeenScanId IS NULL OR lastSeenScanId != :scanId)"
     )
     suspend fun markTracksAbsentNotInScan(scanId: Long, reason: AbsentReason)
 
@@ -96,7 +97,41 @@ interface LibraryDao {
         )
         """
     )
-    suspend fun getAudioContentNeedingAnalysis(extractorVersion: String, configHash: String): List<AudioContent>
+    suspend fun getAudioContentNeedingAnalysis(
+        extractorVersion: String,
+        configHash: String
+    ): List<AudioContent>
+
+    @Query(
+        """
+        SELECT ac.id AS audioContentId, ac.duration AS durationSec FROM AudioContent ac
+        WHERE EXISTS (SELECT 1 FROM Track t WHERE t.audioContentId = ac.id AND t.present = 1)
+        AND (
+            NOT EXISTS (
+                SELECT 1 FROM AudioFeatures af
+                WHERE af.audioContentId = ac.id AND af.extractorVersion = :extractorVersion AND af.configHash = :configHash
+            )
+            OR NOT EXISTS (
+                SELECT 1 FROM Fingerprint f
+                WHERE f.audioContentId = ac.id AND f.analyzerVersion = :extractorVersion
+                  AND f.configHash = :configHash AND f.purpose = 'CANONICAL'
+            )
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM IngestError e JOIN Track t2 ON t2.path = e.path
+            WHERE t2.audioContentId = ac.id AND t2.present = 1
+              AND e.stage = 'analyze' AND e.resolvedAt IS NULL AND e.attempts >= :maxAttempts
+        )
+        ORDER BY ac.id
+        LIMIT :limit
+        """
+    )
+    suspend fun getPendingAnalysis(
+        extractorVersion: String,
+        configHash: String,
+        maxAttempts: Int,
+        limit: Int
+    ): List<PendingAnalysisRow>
 
     @Transaction
     suspend fun getOrCreateAudioContentIdAndAssign(track: Track, audioContent: AudioContent): Long {
@@ -115,8 +150,8 @@ interface LibraryDao {
     // its own, no explicit reload.
     @Query(
         "SELECT * FROM Track WHERE present = 1 AND durationMs >= :minDurationMs " +
-            "AND id NOT IN (SELECT trackId FROM BlacklistedTrack) " +
-            "ORDER BY tagTitle COLLATE NOCASE ASC"
+                "AND id NOT IN (SELECT trackId FROM BlacklistedTrack) " +
+                "ORDER BY tagTitle COLLATE NOCASE ASC"
     )
     fun getPresentTracksFlow(minDurationMs: Long = 0L): Flow<List<Track>>
 
@@ -124,8 +159,8 @@ interface LibraryDao {
     // restoring a saved queue at startup) rather than an ongoing observer.
     @Query(
         "SELECT * FROM Track WHERE present = 1 AND durationMs >= :minDurationMs " +
-            "AND id NOT IN (SELECT trackId FROM BlacklistedTrack) " +
-            "ORDER BY tagTitle COLLATE NOCASE ASC"
+                "AND id NOT IN (SELECT trackId FROM BlacklistedTrack) " +
+                "ORDER BY tagTitle COLLATE NOCASE ASC"
     )
     suspend fun getPresentTracks(minDurationMs: Long = 0L): List<Track>
 
@@ -136,34 +171,34 @@ interface LibraryDao {
     // (pre-migration) won't have a value until its next rescan.
     @Query(
         "SELECT * FROM Track WHERE present = 1 " +
-            "AND id NOT IN (SELECT trackId FROM BlacklistedTrack) " +
-            "ORDER BY dateAdded IS NULL, dateAdded DESC LIMIT 50"
+                "AND id NOT IN (SELECT trackId FROM BlacklistedTrack) " +
+                "ORDER BY dateAdded IS NULL, dateAdded DESC LIMIT 50"
     )
     fun getLastAddedTracksFlow(): Flow<List<Track>>
 
     @Query(
         "SELECT t.* FROM Track t " +
-            "INNER JOIN FavoriteTrack f ON t.id = f.trackId " +
-            "WHERE t.present = 1 AND t.id NOT IN (SELECT trackId FROM BlacklistedTrack) " +
-            "ORDER BY f.addedAt DESC"
+                "INNER JOIN FavoriteTrack f ON t.id = f.trackId " +
+                "WHERE t.present = 1 AND t.id NOT IN (SELECT trackId FROM BlacklistedTrack) " +
+                "ORDER BY f.addedAt DESC"
     )
     fun getFavoriteTracksFlow(): Flow<List<Track>>
 
     @Query(
         "SELECT t.* FROM Track t " +
-            "INNER JOIN PlaybackEvent p ON t.id = p.trackId " +
-            "WHERE t.present = 1 AND t.id NOT IN (SELECT trackId FROM BlacklistedTrack) " +
-            "GROUP BY p.trackId " +
-            "ORDER BY MAX(p.startedAt) DESC LIMIT 50"
+                "INNER JOIN PlaybackEvent p ON t.id = p.trackId " +
+                "WHERE t.present = 1 AND t.id NOT IN (SELECT trackId FROM BlacklistedTrack) " +
+                "GROUP BY p.trackId " +
+                "ORDER BY MAX(p.startedAt) DESC LIMIT 50"
     )
     fun getHistoryTracksFlow(): Flow<List<Track>>
 
     @Query(
         "SELECT t.* FROM Track t " +
-            "INNER JOIN PlaybackEvent p ON t.id = p.trackId " +
-            "WHERE t.present = 1 AND t.id NOT IN (SELECT trackId FROM BlacklistedTrack) " +
-            "GROUP BY p.trackId " +
-            "ORDER BY COUNT(p.id) DESC LIMIT 50"
+                "INNER JOIN PlaybackEvent p ON t.id = p.trackId " +
+                "WHERE t.present = 1 AND t.id NOT IN (SELECT trackId FROM BlacklistedTrack) " +
+                "GROUP BY p.trackId " +
+                "ORDER BY COUNT(p.id) DESC LIMIT 50"
     )
     fun getMostPlayedTracksFlow(): Flow<List<Track>>
 
@@ -173,17 +208,17 @@ interface LibraryDao {
     // would otherwise be undercounted or dropped entirely.
     @Query(
         "SELECT COALESCE(t.tagArtist, 'Unknown Artist') AS artist, COUNT(p.id) AS playCount " +
-            "FROM PlaybackEvent p INNER JOIN Track t ON t.id = p.trackId " +
-            "WHERE t.present = 1 AND t.id NOT IN (SELECT trackId FROM BlacklistedTrack) " +
-            "GROUP BY artist ORDER BY playCount DESC LIMIT 50"
+                "FROM PlaybackEvent p INNER JOIN Track t ON t.id = p.trackId " +
+                "WHERE t.present = 1 AND t.id NOT IN (SELECT trackId FROM BlacklistedTrack) " +
+                "GROUP BY artist ORDER BY playCount DESC LIMIT 50"
     )
     fun getTopArtistsByPlayCountFlow(): Flow<List<ArtistPlayCount>>
 
     @Query(
         "SELECT COALESCE(t.tagAlbum, 'Unknown Album') AS album, COUNT(p.id) AS playCount " +
-            "FROM PlaybackEvent p INNER JOIN Track t ON t.id = p.trackId " +
-            "WHERE t.present = 1 AND t.id NOT IN (SELECT trackId FROM BlacklistedTrack) " +
-            "GROUP BY album ORDER BY playCount DESC LIMIT 50"
+                "FROM PlaybackEvent p INNER JOIN Track t ON t.id = p.trackId " +
+                "WHERE t.present = 1 AND t.id NOT IN (SELECT trackId FROM BlacklistedTrack) " +
+                "GROUP BY album ORDER BY playCount DESC LIMIT 50"
     )
     fun getTopAlbumsByPlayCountFlow(): Flow<List<AlbumPlayCount>>
 
@@ -192,8 +227,8 @@ interface LibraryDao {
     // tracks so they can be un-blacklisted.
     @Query(
         "SELECT t.* FROM Track t " +
-            "INNER JOIN BlacklistedTrack b ON t.id = b.trackId " +
-            "WHERE t.present = 1 ORDER BY b.addedAt DESC"
+                "INNER JOIN BlacklistedTrack b ON t.id = b.trackId " +
+                "WHERE t.present = 1 ORDER BY b.addedAt DESC"
     )
     fun getBlacklistedTracksFlow(): Flow<List<Track>>
 }

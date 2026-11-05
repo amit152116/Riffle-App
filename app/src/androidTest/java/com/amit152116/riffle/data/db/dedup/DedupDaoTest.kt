@@ -1,5 +1,6 @@
 package com.amit152116.riffle.data.db.dedup
 
+import org.junit.Assert.assertTrue
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
@@ -82,5 +83,36 @@ class DedupDaoTest {
         val loaded = dao.getQuarantineLogById(logId)
         assertNotNull(loaded)
         assertEquals(QuarantineState.MOVED, loaded!!.state)
+    }
+
+    private suspend fun content(hash: String) =
+        libraryDao.insertAudioContent(TestFixtures.audioContent(audioHash = hash))
+
+    private suspend fun group(runId: Long, decision: DupDecision, vararg members: Long) {
+        val gid = dao.insertDupGroup(TestFixtures.dupGroup(runId, decision = decision))
+        members.forEach { dao.insertGroupContent(GroupContent(gid, it)) }
+    }
+
+    @Test
+    fun exclusions_comeOnlyFromApprovedOrAppliedGroups() = runBlocking {
+        val runId = fingerprintDao.insertMatchRun(TestFixtures.matchRun())
+        val a = content("a"); val b = content("b"); val c = content("c")
+        val d = content("d"); val e = content("e"); val f = content("f")
+        group(runId, DupDecision.APPROVED, a, b, c)
+        group(runId, DupDecision.APPLIED, d, e)
+        group(runId, DupDecision.PROPOSED, f, a)
+        group(runId, DupDecision.REJECTED, f, b)
+
+        val exclusions = DedupRepository(dao).getDuplicateExclusions()
+
+        assertEquals(setOf(b, c), exclusions.getValue(a))
+        assertEquals(setOf(a, c), exclusions.getValue(b))
+        assertEquals(setOf(e), exclusions.getValue(d))
+        assertTrue(f !in exclusions)
+    }
+
+    @Test
+    fun exclusions_areEmptyWithoutAnyGroups() = runBlocking {
+        assertTrue(DedupRepository(dao).getDuplicateExclusions().isEmpty())
     }
 }

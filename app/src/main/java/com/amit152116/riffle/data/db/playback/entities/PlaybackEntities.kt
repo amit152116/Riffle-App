@@ -1,5 +1,6 @@
-package com.amit152116.riffle.data.db.playback
+package com.amit152116.riffle.data.db.playback.entities
 
+import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -98,4 +99,13 @@ data class PlaylistTrack(
     val playlistId: Long,
     val trackId: Long,
     val position: Int
+)
+
+// Query projection, not a table. playlistTrackId is PlaylistTrack.id, kept
+// separate from Track.id because the same track can appear more than once in
+// a playlist (see PlaylistTrack's kdoc) - the UI must key list items and
+// route removeFromPlaylist() by this id, never by the embedded track's id.
+data class PlaylistTrackWithTrack(
+    val playlistTrackId: Long,
+    @Embedded val track: Track
 )

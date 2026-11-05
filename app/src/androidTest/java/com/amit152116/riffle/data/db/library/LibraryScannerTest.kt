@@ -95,6 +95,8 @@ class LibraryScannerTest {
             Log.w(TAG, "Permission granted but MediaStore reported 0 tracks -- device has no music?")
             return@runBlocking
         }
+        // scan() is the fast metadata pass only; AudioContent rows come from the hash pass.
+        scanner.hashPendingTracks()
 
         val firstTrack = db.libraryDao().let { dao ->
             // Any inserted track will do -- just need one row to follow the FK chain.
@@ -117,6 +119,7 @@ class LibraryScannerTest {
         if (first.scanned == 0) return@runBlocking // nothing to verify idempotency against
 
         val second = scanner.scan()
+        scanner.hashPendingTracks() // scan() no longer hashes; AudioContent rows come from this pass
 
         assertEquals(
             "Same MediaStore content should scan the same track count both times",

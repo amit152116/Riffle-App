@@ -43,7 +43,7 @@ class FingerprintDaoTest {
 
         assertNotNull(loaded)
         assertEquals(contentId, loaded!!.audioContentId)
-        assertEquals(3, loaded.fpRaw.size)
+        assertEquals(3, loaded.fingerprintRaw.size)
     }
 
     @Test

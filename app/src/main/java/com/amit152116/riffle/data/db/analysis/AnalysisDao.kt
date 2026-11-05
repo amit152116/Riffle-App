@@ -18,4 +18,23 @@ interface AnalysisDao {
 
     @Query("SELECT * FROM QualityFlag WHERE audioContentId = :audioContentId")
     suspend fun getQualityFlagByAudioContentId(audioContentId: Long): QualityFlag?
+
+    /**
+     * Recordings the engine can use: MFCC + energy present, at least one present Track, and actual music -
+     * not shorter than [minDurationSec] (unknown duration is kept) and louder than [silenceLufs]
+     * (unknown loudness is kept). Ringtones, voice notes and silent files otherwise become similarity
+     * hubs, get shuffled, and make k-means spend clusters on outliers.
+     */
+    @Query(
+        """
+        SELECT af.* FROM AudioFeatures af
+        JOIN AudioContent ac ON ac.id = af.audioContentId
+        WHERE af.mfccMean IS NOT NULL AND af.energy IS NOT NULL
+          AND (ac.duration IS NULL OR ac.duration >= :minDurationSec)
+          AND (af.loudnessLufs IS NULL OR af.loudnessLufs > :silenceLufs)
+          AND EXISTS (SELECT 1 FROM Track t WHERE t.audioContentId = af.audioContentId AND t.present = 1)
+        ORDER BY af.audioContentId
+        """
+    )
+    suspend fun getEligibleFeatures(minDurationSec: Double, silenceLufs: Double): List<AudioFeatures>
 }

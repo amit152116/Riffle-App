@@ -1,7 +1,7 @@
 package com.amit152116.riffle.data.model
 
 enum class GridStyle(val label: String) {
-    GRID("Grid"),
+    GRID("Normal"),
     CARD("Card"),
     CIRCULAR("Circular"),
     IMAGE("Image"),

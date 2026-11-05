@@ -4,6 +4,7 @@ import com.amit152116.riffle.data.db.library.AudioContent
 import com.amit152116.riffle.data.db.library.IngestError
 import com.amit152116.riffle.data.db.library.ScanRun
 import com.amit152116.riffle.data.db.library.Track
+import com.amit152116.riffle.data.db.playback.entities.Playlist
 
 object TestFixtures {
     fun audioContent(
@@ -35,10 +36,10 @@ object TestFixtures {
         path: String = "/storage/emulated/0/Music/song.mp3",
         size: Long? = 4_000_000L,
         mtime: Double? = 1_700_000_000.0,
-        dev: Long? = 1L,
-        inode: Long? = 100L,
-        nlink: Int? = 1,
         audioContentId: Long? = null,
+        mediaStoreId: Long? = 42L,
+        albumId: Long? = 7L,
+        durationMs: Long? = 180_000L,
         bitrate: Int? = 320,
         tagTitle: String? = "Test Title",
         tagArtist: String? = "Test Artist",
@@ -48,15 +49,18 @@ object TestFixtures {
         lastSeenScanId: Long? = null,
         present: Boolean = true,
         absentReason: AbsentReason? = null,
-        scannedAt: Long? = 1_000L
+        scannedAt: Long? = 1_000L,
+        dateAdded: Long? = 1_000L,
+        displayName: String? = "song.mp3",
+        relativePath: String? = "Music/"
     ) = Track(
         path = path,
         size = size,
         mtime = mtime,
-        dev = dev,
-        inode = inode,
-        nlink = nlink,
         audioContentId = audioContentId,
+        mediaStoreId = mediaStoreId,
+        albumId = albumId,
+        durationMs = durationMs,
         bitrate = bitrate,
         tagTitle = tagTitle,
         tagArtist = tagArtist,
@@ -66,7 +70,10 @@ object TestFixtures {
         lastSeenScanId = lastSeenScanId,
         present = present,
         absentReason = absentReason,
-        scannedAt = scannedAt
+        scannedAt = scannedAt,
+        dateAdded = dateAdded,
+        displayName = displayName,
+        relativePath = relativePath
     )
 
     fun ingestError(
@@ -100,8 +107,8 @@ object TestFixtures {
         configHash: String = "cfg-1",
         purpose: FingerprintPurpose = FingerprintPurpose.CANONICAL,
         algorithm: Int? = 1,
-        fpRaw: ByteArray = byteArrayOf(1, 2, 3),
-        fpLength: Int = 3,
+        fingerprintRaw: ByteArray = byteArrayOf(1, 2, 3),
+        fingerprintLength: Int = 3,
         computedAt: Long? = 1_000L
     ) = com.amit152116.riffle.data.db.fingerprint.Fingerprint(
         audioContentId = audioContentId,
@@ -110,8 +117,8 @@ object TestFixtures {
         configHash = configHash,
         purpose = purpose,
         algorithm = algorithm,
-        fpRaw = fpRaw,
-        fpLength = fpLength,
+        fingerprintRaw = fingerprintRaw,
+        fingerprintLength = fingerprintLength,
         computedAt = computedAt
     )
 
@@ -247,26 +254,24 @@ object TestFixtures {
         createdAt = createdAt
     )
 
-    fun trackSimilarity(
-        trackId: Long,
-        neighborId: Long,
-        mfccNorm: Double = 0.1,
-        bpmNorm: Double? = 0.05,
-        keyNorm: Double? = 0.0,
-        energyNorm: Double? = 0.02,
-        combinedScore: Double = 0.9,
-        configHash: String? = "cfg-1"
-    ) = com.amit152116.riffle.data.db.cluster.TrackSimilarity(
-        trackId = trackId,
-        neighborId = neighborId,
-        mfccNorm = mfccNorm,
-        bpmNorm = bpmNorm,
-        keyNorm = keyNorm,
-        energyNorm = energyNorm,
-        combinedScore = combinedScore,
-        configHash = configHash
+    fun contentSimilarity(
+        audioContentId: Long,
+        neighborContentId: Long,
+        mfccDistance: Double = 0.1,
+        bpmDistance: Double? = 0.05,
+        keyDistance: Double? = 0.0,
+        energyDistance: Double? = 0.02,
+        combinedScore: Double = 0.1
+    ) = com.amit152116.riffle.data.db.cluster.ContentSimilarity(
+        audioContentId = audioContentId,
+        neighborContentId = neighborContentId,
+        mfccDistance = mfccDistance,
+        bpmDistance = bpmDistance,
+        keyDistance = keyDistance,
+        energyDistance = energyDistance,
+        combinedScore = combinedScore
     )
 
     fun playlist(name: String = "My Playlist", createdAt: Long = 1_000L) =
-        com.amit152116.riffle.data.db.playback.Playlist(name = name, createdAt = createdAt)
+        Playlist(name = name, createdAt = createdAt)
 }

@@ -1,11 +1,18 @@
 package com.amit152116.riffle.data.db.library
 
+import android.app.ActivityManager
 import android.content.ContentUris
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.BatteryManager
 import android.provider.MediaStore
 import androidx.core.content.ContextCompat
+import com.amit152116.riffle.analysis.AnalysisParallelism
+import com.amit152116.riffle.analysis.AnalysisRunner
+import com.amit152116.riffle.analysis.ChunkResult
+import com.amit152116.riffle.analysis.ContinuationScheduler
+import com.amit152116.riffle.analysis.TrackAnalyzer
 import com.amit152116.riffle.data.db.AbsentReason
 import com.amit152116.riffle.data.db.RunStatus
 import com.amit152116.riffle.data.db.analysis.AnalysisResultWriter
@@ -16,6 +23,8 @@ import com.amit152116.riffle.log.RiffleLog
 import com.amit152116.riffle.permission.MediaPermission
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 class MissingMediaPermissionException :
@@ -89,7 +98,47 @@ class LibraryScanner(
 ) {
     private val log = RiffleLog(this)
 
-    suspend fun scan(): ScanResult = withContext(Dispatchers.IO) {
+    private companion object {
+        val scanLock = Mutex()      // scan() and hashPendingTracks() never overlap (process-wide)
+        val analysisLock = Mutex()  // one analysis chunk at a time
+    }
+
+    /** Builds the chunk runner over Room; see [analyzeChunk]. */
+    internal fun analysisRunner(scheduler: ContinuationScheduler): AnalysisRunner {
+        val source = RoomAnalysisWorkSource(repository, EssentiaExtractor.EXTRACTOR_VERSION, extractor.value.configHash())
+        val analyzer = RoomRecordingAnalyzer(context, repository, source, TrackAnalyzer(extractor.value), resultWriter)
+        return AnalysisRunner(source, analyzer, scheduler, parallelism = ::currentParallelism)
+    }
+
+    /** Slots for this chunk from the device's state: cores, charging, and whether the app is in the foreground. */
+    private fun currentParallelism(): Int {
+        val charging = context.getSystemService(BatteryManager::class.java)?.isCharging == true
+        val state = ActivityManager.RunningAppProcessInfo().also { ActivityManager.getMyMemoryState(it) }
+        val foreground = state.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE
+        val heapMb = (Runtime.getRuntime().maxMemory() / (1024 * 1024)).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        return AnalysisParallelism.choose(Runtime.getRuntime().availableProcessors(), charging, foreground, heapMb)
+    }
+
+    /** Recordings still worth analysing (attempt-capped ones excluded); drives progress UI and the foreground service. */
+    suspend fun pendingAnalysisCount(): Int =
+        repository.getPendingAnalysis(EssentiaExtractor.EXTRACTOR_VERSION, extractor.value.configHash(), MAX_ANALYSIS_ATTEMPTS, Int.MAX_VALUE).size
+
+    /** Tracks the hash pass has not reached yet (they cannot be analysed before they are hashed). */
+    suspend fun pendingHashCount(): Int = repository.getTracksNeedingHash().size
+
+    /** Runs one chunk unless another is already running (that one keeps the queue moving); null = skipped. */
+    suspend fun analyzeChunk(scheduler: ContinuationScheduler): ChunkResult? {
+        if (!analysisLock.tryLock()) return null
+        try {
+            return analysisRunner(scheduler).runChunkAndSchedule()
+        } finally {
+            analysisLock.unlock()
+        }
+    }
+
+    suspend fun scan(): ScanResult = scanLock.withLock { scanLocked() }
+
+    private suspend fun scanLocked(): ScanResult = withContext(Dispatchers.IO) {
         if (ContextCompat.checkSelfPermission(context, MediaPermission.readAudio) !=
             PackageManager.PERMISSION_GRANTED
         ) {
@@ -182,7 +231,9 @@ class LibraryScanner(
     }
 
     /** Slow pass: hashes tracks the fast pass wrote but nothing has hashed yet. See class kdoc. */
-    suspend fun hashPendingTracks(): HashResult = withContext(Dispatchers.IO) {
+    suspend fun hashPendingTracks(): HashResult = scanLock.withLock { hashPendingTracksLocked() }
+
+    private suspend fun hashPendingTracksLocked(): HashResult = withContext(Dispatchers.IO) {
         var hashed = 0
         var failed = 0
         for (track in repository.getTracksNeedingHash()) {

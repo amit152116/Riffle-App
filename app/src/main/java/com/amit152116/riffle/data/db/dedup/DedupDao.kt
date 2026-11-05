@@ -4,6 +4,8 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 
+class ApprovedGroupContent(val groupId: Long, val audioContentId: Long)
+
 @Dao
 interface DedupDao {
     @Insert
@@ -26,4 +28,12 @@ interface DedupDao {
 
     @Query("SELECT * FROM QuarantineLog WHERE id = :id")
     suspend fun getQuarantineLogById(id: Long): QuarantineLog?
+
+    /** Recordings belonging to a group the user approved (or that was already applied). */
+    @Query(
+        "SELECT gc.groupId AS groupId, gc.audioContentId AS audioContentId " +
+            "FROM GroupContent gc JOIN DupGroup dg ON dg.id = gc.groupId " +
+            "WHERE dg.decision IN ('APPROVED', 'APPLIED')"
+    )
+    suspend fun getApprovedGroupContent(): List<ApprovedGroupContent>
 }
