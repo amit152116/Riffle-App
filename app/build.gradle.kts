@@ -10,6 +10,11 @@ android {
     compileSdk {
         version = release(37)
     }
+    // Pinned to match the NDK toolchain libessentia.a was cross-compiled with
+    // (see /home/amit_152116/Documents/essentia build_android.sh-derived config).
+    // A mismatched NDK/libc++ between this app and the prebuilt static lib is
+    // a real source of link/runtime ABI bugs.
+    ndkVersion = "27.1.12297006"
 
     defaultConfig {
         applicationId = "com.amit152116.riffle"
